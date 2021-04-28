@@ -5,19 +5,38 @@ date: "28/04/2021"
 output: pdf_document
 ---
 
-# Introduction
-
-```{r setup, include=FALSE}
+```{r}
 rm(list=objects())
 graphics.off()
 setwd("~/OneDrive/Cours/2020-2021/08-STA203/PROJET")
+
+load("cookie.app.RData")
+n <- nrow(cookie.app)
+p <- ncol(cookie.app)
+xtrain <- data.frame(cookie.app,nrow=n,ncol=p)
+ytrain <- xtrain[,1]
+xtrain <- xtrain[,-1]
+
+load("cookie.val.RData")
+n1 <- nrow(cookie.val)
+p1 <- ncol(cookie.val)
+xtest <- data.frame(cookie.val,nrow=n1,ncol=p1)
+ytest <- xtest[,1]
+xtest <- xtest[,-1]
+
+boxplot(xtrain,main="Représentation en boxplot du jeu d'apprentissage",xlab="Fréquences",ylim=c(0,2))
 ```
-
-
-# 1- Un peu de théorie
-Nous allons charger les données d'apprentissage $cookie.app.RData$
 ```{r}
-cookie <- load("cookie.app.RData")
-str(cookie.app)
+library(FactoMineR)
+pca.res <- PCA(xtrain,graph = FALSE)
+barplot(pca.res$eig[,1],main = "Histogramme des valeurs propres de l'analyse \n par composantes principales")
+
+abline(h=pca.res$eig[1,1]/n,col="red",lty=2)
+```
+Nous pouvons retenir 2 voire 3 dimensions.
+
+```{r}
+plot(pca.res,choix = "ind",axes = c(1,2),main="Représentation des individus sur les axes principaux")
+
 ```
 
