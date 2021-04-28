@@ -1,0 +1,23 @@
+---
+title: "Projet STA203 Cortambert - Riou"
+author: "Pierre Cortambret - William Riou"
+date: "28/04/2021"
+output: pdf_document
+---
+
+# Introduction
+
+```{r setup, include=FALSE}
+rm(list=objects())
+graphics.off()
+setwd("~/OneDrive/Cours/2020-2021/08-STA203/PROJET")
+```
+
+
+# 1- Un peu de théorie
+Nous allons charger les données d'apprentissage $cookie.app.RData$
+```{r}
+cookie <- load("cookie.app.RData")
+str(cookie.app)
+```
+
