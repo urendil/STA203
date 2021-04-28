@@ -4,6 +4,11 @@ author: "Pierre Cortambret - William Riou"
 date: "28/04/2021"
 output: pdf_document
 ---
+# Introduction
+
+# 2- Analyse exploratoire
+
+## 1 - Mise en forme des données
 
 ```{r}
 rm(list=objects())
@@ -23,20 +28,55 @@ p1 <- ncol(cookie.val)
 xtest <- data.frame(cookie.val,nrow=n1,ncol=p1)
 ytest <- xtest[,1]
 xtest <- xtest[,-1]
-
-boxplot(xtrain,main="Représentation en boxplot du jeu d'apprentissage",xlab="Fréquences",ylim=c(0,2))
 ```
+
+
+## 2 - Analyse par composantes principales
+```{r}
+par(mfrow=c(1,2))
+boxplot(t(xtrain),main="Représentation en boxplot du jeu d'apprentissage",xlab="Fréquences",ylim=c(0,2))
+matplot(t(xtrain),main="Représentation du jeu d'apprentissage",xlab="Fréquences",ylab = "xtrain",ylim=c(0,2),type="l")
+```
+
+
+
 ```{r}
 library(FactoMineR)
-pca.res <- PCA(xtrain,graph = FALSE)
-barplot(pca.res$eig[,1],main = "Histogramme des valeurs propres de l'analyse \n par composantes principales")
-
-abline(h=pca.res$eig[1,1]/n,col="red",lty=2)
+library(factoextra)
+pca.res <- PCA(xtrain,graph = FALSE, scale.unit = TRUE, ncp = 6)
+fviz_eig(pca.res,main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
 ```
 Nous pouvons retenir 2 voire 3 dimensions.
-
 ```{r}
-plot(pca.res,choix = "ind",axes = c(1,2),main="Représentation des individus sur les axes principaux")
-
+par(mfrow=c(2,2))
+fviz_pca_ind(pca.res,choix = "ind",axes = c(1,2),col.ind = "cos2",repel = TRUE)
+fviz_pca_ind(pca.res,choix = "ind",axes = c(2,3),col.ind = "cos2",repel = TRUE)
+fviz_pca_ind(pca.res,choix = "ind",axes = c(3,4),col.ind = "cos2",repel = TRUE)
+fviz_pca_ind(pca.res,choix = "ind",axes = c(4,5),col.ind = "cos2",repel = TRUE)
+#plot(pca.res,choix = "ind",axes = c(5,6),main="Représentation des individus sur les axes principaux 5 et 6")
 ```
 
+## 3 - Codage de la fonction reconstruct
+```{r}
+Xm <- apply(xtrain , 1 , mean)
+Xsd <- apply(xtrain , 1 , sd)
+reconstruct <- function(res,nr,Xm,Xsd){
+  PCA(res,axes = 1:nr)
+}
+#reconstruct(pca.res,6,Xm,Xsd)
+```
+
+
+
+```{r}
+library(caret)
+par(mfrow=c(2,3))
+y <- c(1,2,3,4,5,39)
+indi = 24
+xtrain[indi,y]
+plot(xtrain[indi,y],main = paste("RMSE = ",c(RMSE(xtrain[indi,y],ytrain[indi])),"\n MAE = ",c(MAE(xtrain[indi,y],ytrain[indi]))))
+```
+
+# 3 - Régression pénalisée
+
+## 1 - 
