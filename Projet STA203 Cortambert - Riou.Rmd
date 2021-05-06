@@ -4,20 +4,156 @@ author: "Pierre Cortambret - William Riou"
 date: "28/04/2021"
 output: pdf_document
 ---
-
 # Introduction
 
-```{r setup, include=FALSE}
+Le but de cette analyse est de créer un modèle qui permet de déterminer la teneur en sucre des cookies par spectrométrie. Le spectre s'étend sur 700 fréquences (variables explicatives) sur 72 individus (cookies). En travaillant sur ce jeu de données, les méthodes de statistique inférentielle rencontrent rapidement les limites des jeux de données de taille importante. Il va falloir déterminer quelques variables explicatives dont le $cos2$ est important pour pouvoir modéliser plus facilement le problème.
+
+# 1 - Un peu de théorie
+
+
+# 2 - Analyse exploratoire
+
+## 1 - Mise en forme des données
+
+```{r}
 rm(list=objects())
 graphics.off()
 setwd("~/OneDrive/Cours/2020-2021/08-STA203/PROJET")
 ```
 
-
-# 1- Un peu de théorie
-Nous allons charger les données d'apprentissage $cookie.app.RData$
+Créons le jeu d'apprentissage
 ```{r}
-cookie <- load("cookie.app.RData")
-str(cookie.app)
+load("cookie.app.RData")
+n <- nrow(cookie.app)
+p <- ncol(cookie.app)
+xtrain <- data.frame(cookie.app)
+ytrain <- xtrain[,1]
+xtrain <- xtrain[,-1]
+```
+
+Créons maintenant le jeu de test:
+```{r}
+load("cookie.val.RData")
+n1 <- nrow(cookie.val)
+p1 <- ncol(cookie.val)
+xtest <- data.frame(cookie.val)
+ytest <- xtest[,1]
+xtest <- xtest[,-1]
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+plot(ytrain,main="Jeu d'apprentissage")
+abline(h=mean(ytrain),lty=2,col="red")
+plot(ytest,main="Jeu de test")
+abline(h=mean(ytrain),lty=2,col="blue")
+```
+
+
+
+## 2 - Analyse par composantes principales
+```{r}
+par(mfrow=c(2,2))
+
+boxplot(xtrain,main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Fréquences",ylim=c(0,2))
+
+matplot(t(xtrain),main="Représentation du \n jeu d'apprentissage",xlab="Fréquences",ylab = "xtrain",ylim=c(0,2),type="l")
+
+
+boxplot(t(xtrain),main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Cookies",ylim=c(0,2))
+
+matplot(xtrain,main="Représentation du \n jeu d'apprentissage",xlab="Cookies",ylab = "xtrain",ylim=c(0,2),type="l")
+
+```
+```{r}
+X <- scale(xtrain, scale = TRUE, center = TRUE)
+library(corrplot)
+C <- cor(X)
+corrplot(C)
+```
+Nous constatons que l'étude n'est pas faisable avec 700 variables explicatives. Il faut procéder préalablement à une analyse par composantes principales.
+
+
+```{r warning=FALSE}
+library(FactoMineR)
+library(factoextra)
+pca.res <- PCA(xtrain,graph = FALSE, scale.unit = TRUE)
+fviz_eig(pca.res,main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
+```
+
+Nous pouvons retenir 2 voire 3 dimensions.
+Refaisons maitenant l'analyse préliminaire avec les 6 premières dimensions.
+```{r message=FALSE}
+library(corrplot)
+E <- eigen(C,symmetric = TRUE)
+lambda <- E$values
+Us <- E$vectors
+CP <- xtrain%*%Us
+```
+
+
+```{r}
+X <- rbind(pca.res$var$coord[1:5,],pca.res$var$coord[39,])
+par(mfrow=c(2,2))
+plot(X)
+plot(X,axes = c(2,3))
+plot(X)
+plot(X)
+#plot(pca.res,choix = "ind",axes = c(5,6),main="Représentation des individus sur les axes principaux 5 et 6")
+```
+
+## 3 - Codage de la fonction reconstruct
+```{r}
+Xm <- apply(xtrain , 1 , mean)
+Xsd <- apply(xtrain , 1 , sd)
+reconstruct <- function(res,nr,Xm,Xsd){
+  PCA(res,choix="var",axes = 1:nr)
+  arrows(0,0,)
+}
+#reconstruct(pca.res,6,Xm,Xsd)
+```
+
+
+
+```{r}
+library(caret)
+par(mfrow=c(2,3))
+y <- c(1,2,3,4,5,39)
+indi = 24
+xtrain[indi,y]
+plot(xtrain[indi,y],main = paste("RMSE = ",c(RMSE(xtrain[indi,y],ytrain[indi])),"\n MAE = ",c(MAE(xtrain[indi,y],ytrain[indi]))))
+```
+
+# 3 - Régression pénalisée
+
+## 1 - 
+
+#lambda de 10^6 à 10^-10
+```{r}
+library(glmnet)
+gridRidge <- 10^seq(6,-10,length=100)
+```
+lambda=0 : pas de Ridge regression penalty, revient à minimiser Somme des Carrés Résiduels
+lambda=+inf : Ridge regression penalty max, séparation des données avec la moyenne de tous les variables explicatives
+```{r}
+x <- cbind(ytrain,xtrain)
+xRidge_train <- model.matrix(ytrain~., data=x)
+#ridge_fit <- glmnet(xRidge_train, ytrain, alpha=0, lambda=gridRidge, family="binomial") 
+#plot(ridge_fit)
+```
+
+# 4 - Régression logistique pénalisée
+
+## 1 -
+L'expérience est modélisée comme la réalisation de $n$ variable aléatoires indépendantes $Y_i$ de loi de Bernoulli d'espérance $\pi(x_i)=\mathbb{P}(Y_i=1;x_i):$\\
+$Y_i \rightarrow \mathcal{B}(1,\pi(x_i))$
+
+telle que $logit(\pi(x_i))=log(\frac{\pi(x_i)}{1-\pi(x_i)})=x_i\theta$
+La variable aléatoire $Y$ suit une loi binomiale $\mathcal{B}(1,\pi(x_k))$
+
+```{r}
+z <- ifelse(ytrain>18,1,0)
+ztest <- ifelse(ytest>18,1,0)
 ```
 
