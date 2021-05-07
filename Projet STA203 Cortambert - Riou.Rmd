@@ -50,7 +50,7 @@ ytest <- xtest[,1]
 xtest <- xtest[,-1]
 dim(xtest)
 ```
-
+Et finalement rajoutons un peu de bruit à notre modèle.
 ```{r}
 sigma2 <- 1
 eps <- rnorm(700,mean=0,sd=sigma2)
@@ -71,7 +71,7 @@ abline(h=mean(ytrain),lty=2,col="red")
 plot(ytest,main="Jeu de test",xlab="Nombre d'individus")
 abline(h=mean(ytrain),lty=2,col="blue")
 ```
-Nous explorons les deux jeux de données (apprentissage et test). Nous n'observons aucune tendance dans la teneur en sucre dans les cookies.
+Nous explorons les deux jeux de données (apprentissage et test). Nous n'observons aucune tendance dans la teneur en sucre dans les cookies. Les données présentent une grande variance à peu près équivalente dans les jeux apprentissage et test.
 
 
 ## 2 - Analyse par composantes principales
@@ -124,6 +124,7 @@ corrplot(C.sample)
 ```
 
 
+Afin de gagner en lisibilité, selectionnons quelques individus (1,2,3,4,5 et 39) et quelques variables (celles dont le cos2 est important). Voici les graphiques obtenus:
 
 ```{r}
 par(mfrow=c(3,2))
@@ -156,7 +157,7 @@ reconstruct <- function(res,nr,Xm,Xsd){
 Reconstruisons le nuage des variables dans les 6 premières dimensions.
 
 ```{r}
-reconstruct(pca.res,1,Xm,Xsd)
+#reconstruct(pca.res,1,Xm,Xsd)
 ```
 
 
@@ -183,6 +184,7 @@ library(glmnet)
 gridRidge <- 10^seq(6,-10,length=100)
 ```
 $\lambda=0$ : pas de pénalisation Ridge, revient à minimiser Somme des Carrés Résiduels.
+
 $\lambda=+\infty$ : pénalisation Ridge maximale.
 
 ```{r}
@@ -195,6 +197,7 @@ plot(ridge_fit$a0,main="évolution des coefficients de l'intercept",ylab="Valeur
 abline(h=ridge_fit$a0[which.max(ridge_fit$a0)],col="red",lty=2)
 abline(v=which.max((ridge_fit$a0)),col="red",lty=2)
 ridge_fit$a0[which.max(ridge_fit$a0)]
+text(which.max(ridge_fit$a0),-5,which.max(ridge_fit$a0),col="red")
 ```
 
 ```{r}
@@ -202,7 +205,7 @@ coef.ridge=coef(ridge_fit)[-1,]
 dim(coef.ridge)
 
 plot(ridge_fit$lambda[y],xlim=c(0,200))
-abline(h=0,col="red")
+abline(h=0)
 ```
 
 
@@ -224,6 +227,7 @@ plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="
 abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
 abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
 ridge_fit$a0[which.max(ridge_fit.scale$a0)]
+text(which.max(ridge_fit.scale$a0),0,which.max(ridge_fit.scale$a0),col="red")
 ```
 
 
@@ -250,6 +254,7 @@ plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="
 abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
 abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
 ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)]
+text(which.max(ridge_fit.scale$a0),-5,which.max(ridge_fit.scale$a0),col="red")
 ```
 
 
@@ -331,16 +336,16 @@ plot(seq(0,0.5,length = 1000), res$press,main = "PRESS",xlab="nombre d'échantil
 ```{r}
 kappaet <- res$kappaet
 x.ridge <- lm.ridge(ytrain~.,data = xtrain,lambda = kappaet)
-coeff<-coef(x.ridge)
+coeff <- coef(x.ridge)
 ```
 
 
 ```{r}
 plot.res=function(x,y,titre="titre")
 {
-plot(x,y,col="blue",ylab="Résidus",
-xlab="Valeurs prédites",main=titre)
-abline(h=0,col="green")
+  plot(x,y,col="blue",ylab="Résidus",
+  xlab="Valeurs prédites",main=titre)
+  abline(h=0,col="green")
 }
 ```
 
@@ -349,15 +354,17 @@ abline(h=0,col="green")
 par(mfrow=c(1,2))
 cook.app <- cbind(ytrain,xtrain)
 fit.rid <- rep(coeff[1],nrow(cook.app))+as.vector(coeff[-1]%*%t(data.matrix(cook.app[,-1])))
-plot(fit.rid,cook.app[,1],xlab="Valeurs prédites",ylab = "ytrain")
+plot(fit.rid,cook.app[,1],main="Y_pred en fonction de ytrain",xlab="Valeurs prédites",ylab = "ytrain")
+abline(a = 0 , b = 1,col="red")
 res.rid <- fit.rid-cook.app[,1]
 plot.res(fit.rid,res.rid,titre="Résidus")
 ```
-
+Nous voyons sur la figure de gauche que l'estimation de $ytrain$ est bonne car les points sont tous (ou presque) sur la droite $y=x$.
 ```{r}
 cook.test <- cbind(ytest,xtest)
 ychap <- rep(coeff[1],nrow(cook.test))+as.vector(coeff[-1]%*%t(data.matrix(cook.test[,-1])))
 plot(ychap,cook.test[,1],xlab = "Valeurs prédites",ylab="ytrain")
 mean((cook.test[,1]-ychap**2))
+abline(a = 0 , b = 1 , col = "red")
 ```
 
