@@ -71,7 +71,7 @@ abline(h=mean(ytrain),lty=2,col="red")
 plot(ytest,main="Jeu de test",xlab="Nombre d'individus")
 abline(h=mean(ytrain),lty=2,col="blue")
 ```
-
+Nous explorons les deux jeux de données (apprentissage et test). Nous n'observons aucune tendance dans la teneur en sucre dans les cookies.
 
 
 ## 2 - Analyse par composantes principales
@@ -94,12 +94,12 @@ Créons donc un échantillon avec les variables $X1$,$X10$,$X50$,$X100$,$X250$,$
 ```{r}
 sample<-c(1,10,50,100,250,500,600,700)
 x.sample<-apply(xtrain[,sample],2,sd)
-plot(x.sample,main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",ylab="variance")
+plot(x.sample,main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",ylab="variance",type="o",col="red")
 ```
 
 ```{r}
-X <- scale(xtrain[,sample], scale = TRUE, center = TRUE)
 library(corrplot)
+X <- scale(xtrain[,sample], scale = TRUE, center = TRUE)
 C <- cor(X)
 corrplot(C)
 ```
@@ -112,10 +112,9 @@ library(factoextra)
 pca.res <- PCA(xtrain,graph = FALSE, scale.unit = TRUE)
 fviz_eig(pca.res,main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
 ```
-Nous pouvons retenir 2 voire 3 dimensions.
 Refaisons maintenant l'analyse préliminaire avec les 6 premières dimensions.
 
-Sélectionnons maintenant les individus 1, 2, 3, 4, 5 et 39.
+Sélectionnons les individus 1, 2, 3, 4, 5 et 39.
 
 ```{r}
 y <- c(1:5,39)
@@ -127,27 +126,36 @@ corrplot(C.sample)
 
 
 ```{r}
-par(mfrow=c(3,2))
 fviz_pca_biplot(pca.res,axes = c(1,2),label="ind")
 fviz_pca_biplot(pca.res,axes = c(2,3),label="ind")
 fviz_pca_biplot(pca.res,axes = c(3,4),label="ind")
 fviz_pca_biplot(pca.res,axes = c(4,5),label="ind")
 fviz_pca_biplot(pca.res,axes = c(5,1),label="ind")
-
 ```
 
 ## 3 - Codage de la fonction reconstruct
+
+Nous construisons la fonction reconstruct qui construit dans le nuage des variables dans les $nr$ premières dimensions. Nous ajoutons sur cette représentation le vecteur moyenne $Xm$ et le vecteur des écarts-type $Xsd$.
+
 ```{r}
 Xm <- apply(xtrain , 1 , mean)
 Xsd <- apply(xtrain , 1 , sd)
+
 reconstruct <- function(res,nr,Xm,Xsd){
   par(mfrow=c(abs(nr/2)+1,2))
   for (i in 1:nr){
     plot(res,axes = i:i+1,choix = "var")
-    plot(Xsd,col="blue",add=TRUE)
-    plot(Xm,col="blue",add=TRUE)
+    arrows(0,0,Xsd[i],Xsd[i+1],col="blue")
+    arrows(0,0,Xm[i],Xm[i+1],col = "blue")
   }
 }
+```
+
+
+Reconstruisons le nuage des variables dans les 6 premières dimensions.
+
+```{r}
+reconstruct(pca.res,5,Xm,Xsd)
 ```
 
 
@@ -155,9 +163,12 @@ reconstruct <- function(res,nr,Xm,Xsd){
 ```{r}
 library(caret)
 par(mfrow=c(2,3))
-y <- c(1,2,3,4,5,39)
+y <- c(1:5,39)
+
+#plot(xtrain[y,],main = paste("RMSE = ",round(c(RMSE(xtrain[y,],ytrain[y])),2),"\n MAE = ",round(c(MAE(xtrain[y,],ytrain[y]))),4))
+  
 indi = 24
-plot(xtrain[y,indi],main = paste("RMSE = ",round(c(RMSE(xtrain[y,indi],ytrain)),2),"\n MAE = ",round(c(MAE(xtrain[y,indi],ytrain))),4),ylab="X24")
+plot(xtrain[y,indi],main = paste("RMSE = ",round(c(RMSE(xtrain[y,indi],ytrain)),2),"\n MAE = ",round(c(MAE(xtrain[y,indi],ytrain))),4),ylab="X24",xlab="Individus")
 abline(h=mean(xtrain[y,indi]),col="red",lty=2)
 ```
 
@@ -170,33 +181,38 @@ abline(h=mean(xtrain[y,indi]),col="red",lty=2)
 library(glmnet)
 gridRidge <- 10^seq(6,-10,length=100)
 ```
-lambda=0 : pas de Ridge regression penalty, revient à minimiser Somme des Carrés Résiduels
-lambda=+inf : Ridge regression penalty max, séparation des données avec la moyenne de tous les variables explicatives
+$\lambda=0$ : pas de pénalisation Ridge, revient à minimiser Somme des Carrés Résiduels.
+$\lambda=+\infty$ : pénalisation Ridge maximale.
+
 ```{r}
 x <- cbind(ytrain,xtrain)
+
 xRidge_train <- model.matrix(ytrain~., data=x)
 ridge_fit <- glmnet(xRidge_train, ytrain,alpha = 0, lambda=gridRidge)
-plot(ridge_fit$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept")
+plot(ridge_fit$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="o")
 
-abline(h=ridge_fit$a0[100],col="red",lty=2)
-abline(v=70,col="red",lty=2)
+abline(h=ridge_fit$a0[which.min(ridge_fit$a0)],col="red",lty=2)
+abline(v=which.min((ridge_fit$a0)),col="red",lty=2)
+ridge_fit$a0[which.min(ridge_fit$a0)]
 ```
 
 ```{r}
 coef.ridge=coef(ridge_fit)[-1,]
 dim(coef.ridge)
 
-plot(ridge_fit,xlim=c(0,20),ylim=c(-0.1,0.1))
+plot(ridge_fit$lambda[y],xlim=c(0,200))
 abline(h=0,col="red")
 ```
 
 
 ```{r}
-theta_chap <- function(k){ (t(xtrain)*xtrain+k*diag(1,nrow=n))^(-1)*t(xtrain)*ytrain
+theta_chap <- function(k){ (t(xtrain)*xtrain+k*diag(1,nrow=p))^(-1)*t(xtrain)*ytrain
 }
-k <- seq(0,1,by = 0.01)
-plot(unlist(theta_chap(k)),main="Représentation de l'évolution de l'estimateur theta \n en fonction de kappa",ylab="theta_chap",xlab="kappa",type="o",xlim=c(0,100))
+k <- seq(0,10,by = 1)
+plot(unlist(theta_chap(k)),main="Régression Ridge",ylab="theta_chap",xlab="kappa",type="o",xlim=c(0,10),col="blue")
 ```
+
+## Centrage de Y et de X
 
 ```{r}
 y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
@@ -204,9 +220,35 @@ x.scale <- as.data.frame(cbind(y.scale,scale(xtrain , scale=TRUE , center=TRUE) 
 xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
 ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
 plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept")
-abline(v=40,col="red",lty=2)
+abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
+abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
+ridge_fit$a0[which.max(ridge_fit.scale$a0)]
+```
 
-which.min(ridge_fit.scale$a0)
+
+## Centrage de X et non de Y
+```{r}
+x.scale <- as.data.frame(cbind(ytrain,scale(xtrain , scale=TRUE , center=TRUE) ))
+xRidge_train.scale <- model.matrix(ytrain~., data=x.scale)
+ridge_fit.scale <- glmnet(xRidge_train.scale, ytrain,alpha = 0, lambda=gridRidge)
+plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept")
+
+abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
+abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
+ridge_fit$a0[which.max(ridge_fit.scale$a0)]
+```
+
+## Centrage de Y et non de X
+```{r}
+y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
+x.scale <- as.data.frame(cbind(y.scale,xtrain))
+xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
+ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
+plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept")
+
+abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
+abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
+ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)]
 ```
 
 
@@ -283,7 +325,7 @@ choix.kappa <- function(kappamax,cvseg,nbe=100){
 
 ```{r}
 res <- choix.kappa(0.5,cvseg,nb=1000)
-plot(seq(0,0.5,length = 1000), res$press)
+plot(seq(0,0.5,length = 1000), res$press,main = "PRESS",xlab="nombre d'échantillons",ylab="Predicted Sum of Squares")
 ```
 ```{r}
 kappaet <- res$kappaet
@@ -296,7 +338,7 @@ coeff<-coef(x.ridge)
 plot.res=function(x,y,titre="titre")
 {
 plot(x,y,col="blue",ylab="Résidus",
-xlab="Valeurs predites",main=titre)
+xlab="Valeurs prédites",main=titre)
 abline(h=0,col="green")
 }
 ```
@@ -306,15 +348,15 @@ abline(h=0,col="green")
 par(mfrow=c(1,2))
 cook.app <- cbind(ytrain,xtrain)
 fit.rid <- rep(coeff[1],nrow(cook.app))+as.vector(coeff[-1]%*%t(data.matrix(cook.app[,-1])))
-plot(fit.rid,cook.app[,1])
+plot(fit.rid,cook.app[,1],xlab="Valeurs prédites",ylab = "ytrain")
 res.rid <- fit.rid-cook.app[,1]
-plot.res(fit.rid,res.rid,titre="")
+plot.res(fit.rid,res.rid,titre="Résidus")
 ```
 
 ```{r}
 cook.test <- cbind(ytest,xtest)
 ychap <- rep(coeff[1],nrow(cook.test))+as.vector(coeff[-1]%*%t(data.matrix(cook.test[,-1])))
-plot(ychap,cook.test[,1])
+plot(ychap,cook.test[,1],xlab = "Valeurs prédites",ylab="ytrain")
 mean((cook.test[,1]-ychap**2))
 ```
 
