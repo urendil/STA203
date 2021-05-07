@@ -86,28 +86,34 @@ matplot(xtrain,main="Représentation du \n jeu d'apprentissage",xlab="Cookies",y
 
 ```
 Nous remarquons une tendance générale sur les 40 individus. Nous remarquons aussi que l'écart-type des variables augmentent avec la fréquence.
+
+Une étude n'est pas faisable avec 700 variables explicatives. Il faut procéder préalablement à une analyse par composantes principales. 
+
+Ne retenons que quelques variables de façon aléatoire par les 700 variables.
+Créons donc un échantillon avec les variables $X1$,$X10$,$X50$,$X100$,$X250$,$X500$,$X600$ et $X700$.
 ```{r}
-sample<-c(1,10,50,100,500,700)
-plot(apply(xtrain[,sample],2,sd),main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",ylab="variance")
+sample<-c(1,10,50,100,250,500,600,700)
+x.sample<-apply(xtrain[,sample],2,sd)
+plot(x.sample,main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",ylab="variance")
 ```
 
 ```{r}
-X <- scale(xtrain, scale = TRUE, center = TRUE)
+X <- scale(xtrain[,sample], scale = TRUE, center = TRUE)
 library(corrplot)
 C <- cor(X)
 corrplot(C)
 ```
-Nous constatons que l'étude n'est pas faisable avec 700 variables explicatives. Il faut procéder préalablement à une analyse par composantes principales.
+Nous constatons que la corrélation des variables entre elles diminuent avec la fréquence. La corrélation entre $X1$ et $X50$ est plus importante qu'entre les variables $X1$ et $X700$.
 
+## 2 - Analyse par composantes principales
 ```{r message=TRUE, warning=FALSE}
 library(FactoMineR)
 library(factoextra)
 pca.res <- PCA(xtrain,graph = FALSE, scale.unit = TRUE)
 fviz_eig(pca.res,main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
 ```
-
 Nous pouvons retenir 2 voire 3 dimensions.
-Refaisons maitenant l'analyse préliminaire avec les 6 premières dimensions.
+Refaisons maintenant l'analyse préliminaire avec les 6 premières dimensions.
 ```{r message=FALSE}
 lambda <- eigen(C,symmetric = TRUE)$values
 Us <- eigen(C,symmetric = TRUE)$vectors
@@ -115,21 +121,25 @@ CP <- X%*%Us
 CQ <- rbind(cor(X,CP)[1:5,],cor(X,CP)[39,])
 ```
 
+
+Sélectionnons maintenant les individus 1, 2, 3, 4, 5 et 39.
+
 ```{r}
-x.res <- rbind(xtrain[1:5,],xtrain[39,])
-C.res <- cor(x.res)
+y <- c(1:5,39)
+x <- scale(xtrain[y,], scale = TRUE , center = TRUE)
+C.sample <- cor(x)
+corrplot(C.sample)
 ```
 
 
 
 ```{r}
 par(mfrow=c(3,2))
-fviz_pca_var(pca.res,axes = c(1,2))
+fviz_pca_var(pca.res,axes = c(1,2),repel = FALSE)
 fviz_pca_var(pca.res,axes = c(2,3))
 fviz_pca_var(pca.res,axes = c(3,4))
 fviz_pca_var(pca.res,axes = c(4,5))
 fviz_pca_var(pca.res,axes = c(5,1))
-
 ```
 
 ## 3 - Codage de la fonction reconstruct
@@ -212,6 +222,6 @@ Le jeu de validation n'est pas équilibré non plus. Cependant, les deux jeux (a
 ## 2 - 
 ```{r}
 set.seed(1)
-cv.out=cv.glmnet(xtrain,z,nfolds = 10,lambda=gridRidge) 
+#cv.out=cv.glmnet(xtrain,z,nfolds = 10,lambda=gridRidge) 
 ```
 
