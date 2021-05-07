@@ -126,11 +126,12 @@ corrplot(C.sample)
 
 
 ```{r}
-fviz_pca_biplot(pca.res,axes = c(1,2),label="ind")
-fviz_pca_biplot(pca.res,axes = c(2,3),label="ind")
-fviz_pca_biplot(pca.res,axes = c(3,4),label="ind")
-fviz_pca_biplot(pca.res,axes = c(4,5),label="ind")
-fviz_pca_biplot(pca.res,axes = c(5,1),label="ind")
+par(mfrow=c(3,2))
+fviz_pca_biplot(pca.res,axes = c(1,2),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.99))
+fviz_pca_biplot(pca.res,axes = c(2,3),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.5))
+fviz_pca_biplot(pca.res,axes = c(3,4),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.1))
+fviz_pca_biplot(pca.res,axes = c(4,5),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.01))
+fviz_pca_biplot(pca.res,axes = c(5,1),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.9))
 ```
 
 ## 3 - Codage de la fonction reconstruct
@@ -144,8 +145,8 @@ Xsd <- apply(xtrain , 1 , sd)
 reconstruct <- function(res,nr,Xm,Xsd){
   par(mfrow=c(abs(nr/2)+1,2))
   for (i in 1:nr){
-    plot(res,axes = i:i+1,choix = "var")
-    arrows(0,0,Xsd[i],Xsd[i+1],col="blue")
+    plot(res,axes=i:i+1,choix = "var",col.var="cos2")
+    arrows(0,0,Xsd[i],Xsd[i+1],col = "blue")
     arrows(0,0,Xm[i],Xm[i+1],col = "blue")
   }
 }
@@ -155,7 +156,7 @@ reconstruct <- function(res,nr,Xm,Xsd){
 Reconstruisons le nuage des variables dans les 6 premières dimensions.
 
 ```{r}
-reconstruct(pca.res,5,Xm,Xsd)
+reconstruct(pca.res,1,Xm,Xsd)
 ```
 
 
@@ -176,7 +177,7 @@ abline(h=mean(xtrain[y,indi]),col="red",lty=2)
 
 ## 1 - 
 
-#lambda de 10^6 à 10^-10
+### lambda de 10^6 à 10^-10
 ```{r}
 library(glmnet)
 gridRidge <- 10^seq(6,-10,length=100)
@@ -191,9 +192,9 @@ xRidge_train <- model.matrix(ytrain~., data=x)
 ridge_fit <- glmnet(xRidge_train, ytrain,alpha = 0, lambda=gridRidge)
 plot(ridge_fit$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="o")
 
-abline(h=ridge_fit$a0[which.min(ridge_fit$a0)],col="red",lty=2)
-abline(v=which.min((ridge_fit$a0)),col="red",lty=2)
-ridge_fit$a0[which.min(ridge_fit$a0)]
+abline(h=ridge_fit$a0[which.max(ridge_fit$a0)],col="red",lty=2)
+abline(v=which.max((ridge_fit$a0)),col="red",lty=2)
+ridge_fit$a0[which.max(ridge_fit$a0)]
 ```
 
 ```{r}
