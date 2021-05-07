@@ -9,6 +9,55 @@ output: pdf_document
 Le but de cette analyse est de créer un modèle qui permet de déterminer la teneur en sucre des cookies par spectrométrie. Le spectre s'étend sur 700 fréquences (variables explicatives) sur 72 individus (cookies). En travaillant sur ce jeu de données, les méthodes de statistique inférentielle rencontrent rapidement les limites des jeux de données de taille importante. Il va falloir déterminer quelques variables explicatives dont le $cos2$ est important pour pouvoir modéliser plus facilement le problème.
 
 # 1 - Un peu de théorie
+```{r}
+rm(list=objects())
+graphics.off()
+setwd("~/OneDrive/Cours/2020-2021/08-STA203/PROJET")
+```
+
+## Question 1
+La régression Ridge est particulièrement adaptée lorsque nous travaillons en grande dimension (où le nombre de variables explicatives sont très nombreuses). Le cas échéant, les variables sont souvent fortement corrélées. Le conditionnement de la matrice de corrélation est alors très mauvais (les $\lambda_i$ tendent vers $0$). Afin de compenser ce mauvais conditionnement, nous pénalisons les variables.
+
+## Question 2
+Nous cherchon à calculer l'estimateur des coefficients $\hat{\theta}$.
+L'estimateur des coefficients est défini soit par un problème d'optimisation sous contraintes:
+
+$$\hat{\theta} = argmin_{\theta \in \mathbb{R}^p;||\theta||_1 \leq \delta} ||Y-X \theta||^2$$
+
+soit comme une fonction des paramètres de pénalisation $\kappa$:
+
+$$\hat{\theta}_{ridge}(\kappa) = (X^{'}X+\kappa Id_p)^{-1}*X^{'}Y$$
+
+
+Créons le jeu d'apprentissage
+```{r}
+load("cookie.app.RData")
+xtrain <- data.frame(cookie.app)
+n <- nrow(xtrain)
+p <- ncol(xtrain)
+ytrain <- xtrain[,1]
+xtrain <- xtrain[,-1]
+dim(xtrain)
+```
+
+Créons maintenant le jeu de test:
+```{r}
+load("cookie.val.RData")
+xtest <- data.frame(cookie.val)
+n1 <- nrow(xtest)
+p1 <- ncol(xtest)
+ytest <- xtest[,1]
+xtest <- xtest[,-1]
+dim(xtest)
+```
+
+```{r}
+sigma2 <- 1
+eps <- rnorm(700,mean=0,sd=sigma2)
+x <- xtrain + eps
+res.lm <- lm(ytrain~.,data = x)
+s <- summary(res.lm)
+```
 
 
 # 2 - Analyse exploratoire
@@ -16,37 +65,10 @@ Le but de cette analyse est de créer un modèle qui permet de déterminer la te
 ## 1 - Mise en forme des données
 
 ```{r}
-rm(list=objects())
-graphics.off()
-setwd("~/OneDrive/Cours/2020-2021/08-STA203/PROJET")
-```
-
-Créons le jeu d'apprentissage
-```{r}
-load("cookie.app.RData")
-n <- nrow(cookie.app)
-p <- ncol(cookie.app)
-xtrain <- data.frame(cookie.app)
-ytrain <- xtrain[,1]
-xtrain <- xtrain[,-1]
-```
-
-Créons maintenant le jeu de test:
-```{r}
-load("cookie.val.RData")
-n1 <- nrow(cookie.val)
-p1 <- ncol(cookie.val)
-xtest <- data.frame(cookie.val)
-ytest <- xtest[,1]
-xtest <- xtest[,-1]
-```
-
-
-```{r}
 par(mfrow=c(1,2))
-plot(ytrain,main="Jeu d'apprentissage")
+plot(ytrain,main="Jeu d'apprentissage",xlab = "Nombre d'individus")
 abline(h=mean(ytrain),lty=2,col="red")
-plot(ytest,main="Jeu de test")
+plot(ytest,main="Jeu de test",xlab="Nombre d'individus")
 abline(h=mean(ytrain),lty=2,col="blue")
 ```
 
@@ -54,18 +76,21 @@ abline(h=mean(ytrain),lty=2,col="blue")
 
 ## 2 - Analyse par composantes principales
 ```{r}
-par(mfrow=c(2,2))
-
 boxplot(xtrain,main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Fréquences",ylim=c(0,2))
 
 matplot(t(xtrain),main="Représentation du \n jeu d'apprentissage",xlab="Fréquences",ylab = "xtrain",ylim=c(0,2),type="l")
-
 
 boxplot(t(xtrain),main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Cookies",ylim=c(0,2))
 
 matplot(xtrain,main="Représentation du \n jeu d'apprentissage",xlab="Cookies",ylab = "xtrain",ylim=c(0,2),type="l")
 
 ```
+Nous remarquons une tendance générale sur les 40 individus. Nous remarquons aussi que l'écart-type des variables augmentent avec la fréquence.
+```{r}
+sample<-c(1,10,50,100,500,700)
+plot(apply(xtrain[,sample],2,sd),main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",ylab="variance")
+```
+
 ```{r}
 X <- scale(xtrain, scale = TRUE, center = TRUE)
 library(corrplot)
@@ -74,8 +99,7 @@ corrplot(C)
 ```
 Nous constatons que l'étude n'est pas faisable avec 700 variables explicatives. Il faut procéder préalablement à une analyse par composantes principales.
 
-
-```{r warning=FALSE}
+```{r message=TRUE, warning=FALSE}
 library(FactoMineR)
 library(factoextra)
 pca.res <- PCA(xtrain,graph = FALSE, scale.unit = TRUE)
@@ -85,22 +109,27 @@ fviz_eig(pca.res,main = "Histogramme des valeurs propres de l'analyse par compos
 Nous pouvons retenir 2 voire 3 dimensions.
 Refaisons maitenant l'analyse préliminaire avec les 6 premières dimensions.
 ```{r message=FALSE}
-library(corrplot)
-E <- eigen(C,symmetric = TRUE)
-lambda <- E$values
-Us <- E$vectors
-CP <- xtrain%*%Us
+lambda <- eigen(C,symmetric = TRUE)$values
+Us <- eigen(C,symmetric = TRUE)$vectors
+CP <- X%*%Us
+CQ <- rbind(cor(X,CP)[1:5,],cor(X,CP)[39,])
+```
+
+```{r}
+x.res <- rbind(xtrain[1:5,],xtrain[39,])
+C.res <- cor(x.res)
 ```
 
 
+
 ```{r}
-X <- rbind(pca.res$var$coord[1:5,],pca.res$var$coord[39,])
-par(mfrow=c(2,2))
-plot(X)
-plot(X,axes = c(2,3))
-plot(X)
-plot(X)
-#plot(pca.res,choix = "ind",axes = c(5,6),main="Représentation des individus sur les axes principaux 5 et 6")
+par(mfrow=c(3,2))
+fviz_pca_var(pca.res,axes = c(1,2))
+fviz_pca_var(pca.res,axes = c(2,3))
+fviz_pca_var(pca.res,axes = c(3,4))
+fviz_pca_var(pca.res,axes = c(4,5))
+fviz_pca_var(pca.res,axes = c(5,1))
+
 ```
 
 ## 3 - Codage de la fonction reconstruct
@@ -108,8 +137,8 @@ plot(X)
 Xm <- apply(xtrain , 1 , mean)
 Xsd <- apply(xtrain , 1 , sd)
 reconstruct <- function(res,nr,Xm,Xsd){
-  PCA(res,choix="var",axes = 1:nr)
-  arrows(0,0,)
+  plot(PCA(res,axes = 1:nr),choix = "var")
+  arrows(0,0,Xm%*%CQ[1],Xm%*%CQ[2])
 }
 #reconstruct(pca.res,6,Xm,Xsd)
 ```
@@ -118,11 +147,11 @@ reconstruct <- function(res,nr,Xm,Xsd){
 
 ```{r}
 library(caret)
-par(mfrow=c(2,3))
+#par(mfrow=c(2,3))
 y <- c(1,2,3,4,5,39)
 indi = 24
-xtrain[indi,y]
-plot(xtrain[indi,y],main = paste("RMSE = ",c(RMSE(xtrain[indi,y],ytrain[indi])),"\n MAE = ",c(MAE(xtrain[indi,y],ytrain[indi]))))
+plot(xtrain[y,indi],main = paste("RMSE = ",round(c(RMSE(xtrain[y,indi],ytrain)),2),"\n MAE = ",round(c(MAE(xtrain[y,indi],ytrain))),4),ylab="X24")
+abline(h=mean(xtrain[y,indi]),col="red",lty=2)
 ```
 
 # 3 - Régression pénalisée
@@ -139,14 +168,20 @@ lambda=+inf : Ridge regression penalty max, séparation des données avec la moy
 ```{r}
 x <- cbind(ytrain,xtrain)
 xRidge_train <- model.matrix(ytrain~., data=x)
-#ridge_fit <- glmnet(xRidge_train, ytrain, alpha=0, lambda=gridRidge, family="binomial") 
-#plot(ridge_fit)
+ridge_fit <- glmnet(xRidge_train, ytrain, alpha=0, lambda=gridRidge)
+coef(ridge_fit)[1,]
+
+coef.ridge=coef(ridge_fit)[-1,]
+dim(coef.ridge)
+
+plot(ridge_fit,xlim=c(0,20),ylim=c(-0.1,0.1))
+abline(h=0,col="red")
 ```
 
 # 4 - Régression logistique pénalisée
 
 ## 1 -
-L'expérience est modélisée comme la réalisation de $n$ variable aléatoires indépendantes $Y_i$ de loi de Bernoulli d'espérance $\pi(x_i)=\mathbb{P}(Y_i=1;x_i):$\\
+L'expérience est modélisée comme la réalisation de $n$ variables aléatoires indépendantes $Y_i$ de loi de Bernoulli d'espérance $\pi(x_i)=\mathbb{P}(Y_i=1;x_i):\\$
 $Y_i \rightarrow \mathcal{B}(1,\pi(x_i))$
 
 telle que $logit(\pi(x_i))=log(\frac{\pi(x_i)}{1-\pi(x_i)})=x_i\theta$
@@ -155,5 +190,28 @@ La variable aléatoire $Y$ suit une loi binomiale $\mathcal{B}(1,\pi(x_k))$
 ```{r}
 z <- ifelse(ytrain>18,1,0)
 ztest <- ifelse(ytest>18,1,0)
+sum(z)
+sum(ztest)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(z,main = paste("Jeu d'apprentissage \n moyenne = ",mean(z)))
+abline(h=mean(z),col="red",lty=2)
+
+plot(ztest,main = paste("Jeu de validation \n moyenne = ",round(mean(ztest),3)))
+abline(h=mean(ztest),col="blue",lty=2)
+```
+Le jeu d'apprentissage n'est pas équilibré. La moyenne est égale à 0,4.
+Un jeu de données équilibré aurait eu une moyenne de 0,5.
+
+Le jeu de validation n'est pas équilibré non plus. Cependant, les deux jeux (apprentissage/validation) ont un équilibre (moyenne) équivalente.
+
+
+
+## 2 - 
+```{r}
+set.seed(1)
+cv.out=cv.glmnet(xtrain,z,nfolds = 10,lambda=gridRidge) 
 ```
 
