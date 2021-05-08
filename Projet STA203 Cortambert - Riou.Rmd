@@ -111,6 +111,9 @@ library(FactoMineR)
 library(factoextra)
 pca.res <- PCA(xtrain,graph = FALSE, scale.unit = TRUE)
 fviz_eig(pca.res,main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
+
+vectp <- eigen(cor(xtrain))$vectors
+valp <- eigen(cor(xtrain))$values[1:6]
 ```
 Refaisons maintenant l'analyse préliminaire avec les 6 premières dimensions.
 
@@ -162,17 +165,49 @@ Reconstruisons le nuage des variables dans les 6 premières dimensions.
 
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(caret)
 par(mfrow=c(2,3))
 y <- c(1:5,39)
-
-#plot(xtrain[y,],main = paste("RMSE = ",round(c(RMSE(xtrain[y,],ytrain[y])),2),"\n MAE = ",round(c(MAE(xtrain[y,],ytrain[y]))),4))
-  
-indi = 24
-plot(xtrain[y,indi],main = paste("RMSE = ",round(c(RMSE(xtrain[y,indi],ytrain)),2),"\n MAE = ",round(c(MAE(xtrain[y,indi],ytrain))),4),ylab="X24",xlab="Individus")
-abline(h=mean(xtrain[y,indi]),col="red",lty=2)
+for (i in y){
+  glmModel <- glm(ytrain[i]~.,data = xtrain[i,])
+  Preds <- predict(glmModel,type="response")
+  plot(seq(1:700),xtrain[i,],
+       main = paste("RMSE = ",round(c(RMSE(ytrain[i],Preds)),2),"\n MAE = ",round(c(MAE(ytrain[i],Preds)),4)),
+       type = "l",
+       xlab = "Fréquences",ylab=paste("Cookie ",i," max = ",round(max(xtrain[i,]),3)))
+  abline(v = which.max(xtrain[i,]),col="red",lty=2)
+  abline(h = max(xtrain[i,]),col="red",lty=2)
+  text(which.max(xtrain[i,]),1,max(xtrain[i,]),col="red")
+}
 ```
+Il est difficile de comparer les courbes entre elles car la forme générale semble identique. Prenons un critère (le maximum) afin de comparer ces courbes. Nous constatons que le maximum des courbes est différent:
+
+
+
+```{r}
+round(apply(xtrain[y,],1,max),3)
+```
+De même, nous pouvons comparer les fréquences pour lesquelles ce maximum est atteint. La tendance confirme que le maximum est atteint pour les plus hautes fréquences (Nous pouvions nous en douter grpahiquement). Cependant, ces fréquences ne sont pas identiques.
+```{r}
+round(apply(xtrain[y,],1,which.max),3)
+```
+
+
+```{r}
+par(mfrow=c(1,1))
+indice <- 24
+glmModel <- glm(ytrain[indice]~.,data=xtrain[indice,])
+Preds <- predict(glmModel,type="response")
+plot(seq(1:700),xtrain[indice,],main = paste("RMSE = ",round(c(RMSE(xtrain[indice,],Preds)),2),"\n MAE = ",round(c(MAE(xtrain[indice,],Preds)),4)),type = "l",xlab = "Fréquences",ylab=paste("Cookie ",indice))
+abline(v = which.max(xtrain[indice,]),col="red",lty=2)
+abline(h = max(xtrain[indice,]),col="red",lty=2)
+text(500,max(xtrain[indice,]),max(xtrain[indice,]),col="red")
+```
+
+
+
+
 
 # 3 - Régression pénalisée
 
@@ -192,7 +227,7 @@ x <- cbind(ytrain,xtrain)
 
 xRidge_train <- model.matrix(ytrain~., data=x)
 ridge_fit <- glmnet(xRidge_train, ytrain,alpha = 0, lambda=gridRidge)
-plot(ridge_fit$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="o")
+plot(ridge_fit$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
 
 abline(h=ridge_fit$a0[which.max(ridge_fit$a0)],col="red",lty=2)
 abline(v=which.max((ridge_fit$a0)),col="red",lty=2)
@@ -202,10 +237,9 @@ text(which.max(ridge_fit$a0),-5,which.max(ridge_fit$a0),col="red")
 
 ```{r}
 coef.ridge=coef(ridge_fit)[-1,]
-dim(coef.ridge)
 
-plot(ridge_fit$lambda[y],xlim=c(0,200))
-abline(h=0)
+plot(ridge_fit$lambda[y],xlim=c(0,10),type="o")
+
 ```
 
 
@@ -223,7 +257,7 @@ y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
 x.scale <- as.data.frame(cbind(y.scale,scale(xtrain , scale=TRUE , center=TRUE) ))
 xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
 ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
-plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept")
+plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
 abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
 abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
 ridge_fit$a0[which.max(ridge_fit.scale$a0)]
@@ -236,7 +270,7 @@ text(which.max(ridge_fit.scale$a0),0,which.max(ridge_fit.scale$a0),col="red")
 x.scale <- as.data.frame(cbind(ytrain,scale(xtrain , scale=TRUE , center=TRUE) ))
 xRidge_train.scale <- model.matrix(ytrain~., data=x.scale)
 ridge_fit.scale <- glmnet(xRidge_train.scale, ytrain,alpha = 0, lambda=gridRidge)
-plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept")
+plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
 
 abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
 abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
@@ -249,7 +283,7 @@ y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
 x.scale <- as.data.frame(cbind(y.scale,xtrain))
 xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
 ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
-plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept")
+plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
 
 abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
 abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
@@ -308,7 +342,7 @@ plot(lm.ridge(ytrain~.,data = xtrain,lambda=seq(0,0.2,0.001)))
 
 
 ```{r}
-plot(lm.ridge(ytrain~.,data = xtrain,lambda=gridRidge))
+plot(lm.ridge(ytrain~.,data = xtrain,lambda=gridRidge),xlim=c(0,20))
 ```
 
 ```{r}
