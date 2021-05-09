@@ -51,13 +51,28 @@ xtest <- xtest[,-1]
 dim(xtest)
 ```
 Et finalement rajoutons un peu de bruit à notre modèle.
+
+
 ```{r}
-sigma2 <- 1
+sigma2 <- 0.1
 eps <- rnorm(700,mean=0,sd=sigma2)
-x <- xtrain + eps
-res.lm <- lm(ytrain~.,data = x)
+x.train <- xtrain + eps
+res.lm <- lm(ytrain~.,data = x.train)
 s <- summary(res.lm)
 ```
+
+Mais comment choisir les paramètres du bruit gaussien?
+
+```{r}
+par(mfrow=c(3,2))
+for (i in c(1,0.7,0.5,0.2,0.1,0.01))
+{
+  eps <- rnorm(700,mean=0,sd=sigma2)
+  x.train <- xtrain + eps
+  plot(seq(1,700),x.train[1,],main=c("sigma =",i),type="l")
+}
+```
+Afin que notre modèle ne soit pas trop bruité et que ce soit réaliste nous choisissons unevaleur de $\sigma$ de 0.1.
 
 
 # 2 - Analyse exploratoire
@@ -71,18 +86,22 @@ abline(h=mean(ytrain),lty=2,col="red")
 plot(ytest,main="Jeu de test",xlab="Nombre d'individus")
 abline(h=mean(ytrain),lty=2,col="blue")
 ```
+
+
+
+
 Nous explorons les deux jeux de données (apprentissage et test). Nous n'observons aucune tendance dans la teneur en sucre dans les cookies. Les données présentent une grande variance à peu près équivalente dans les jeux apprentissage et test.
 
 
-## 2 - Analyse par composantes principales
+    
 ```{r}
-boxplot(xtrain,main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Fréquences",ylim=c(0,2))
+boxplot(x.train,main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Fréquences",ylim=c(0,2))
 
-matplot(t(xtrain),main="Représentation du \n jeu d'apprentissage",xlab="Fréquences",ylab = "xtrain",ylim=c(0,2),type="l")
+matplot(t(x.train),main="Représentation du \n jeu d'apprentissage",xlab="Fréquences",ylab = "xtrain",ylim=c(0,2),type="l")
 
-boxplot(t(xtrain),main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Cookies",ylim=c(0,2))
+boxplot(t(x.train),main="Représentation en boxplot \n du jeu d'apprentissage",xlab="Cookies",ylim=c(0,2))
 
-matplot(xtrain,main="Représentation du \n jeu d'apprentissage",xlab="Cookies",ylab = "xtrain",ylim=c(0,2),type="l")
+matplot(x.train,main="Représentation du \n jeu d'apprentissage",xlab="Cookies",ylab = "xtrain",ylim=c(0,2),type="l")
 
 ```
 Nous remarquons une tendance générale sur les 40 individus. Nous remarquons aussi que l'écart-type des variables augmentent avec la fréquence.
@@ -93,49 +112,66 @@ Ne retenons que quelques variables de façon aléatoire par les 700 variables.
 Créons donc un échantillon avec les variables $X1$,$X10$,$X50$,$X100$,$X250$,$X500$,$X600$ et $X700$.
 ```{r}
 sample<-c(1,10,50,100,250,500,600,700)
-x.sample<-apply(xtrain[,sample],2,sd)
-plot(x.sample,main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",ylab="variance",type="o",col="red")
+x.sample<-apply(x.train[,sample],2,sd)
+plot(x.sample,
+     main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",
+     ylab="écart-type",type="o",col="red")
 ```
+Le graphique nous montre effectivement une augmentation de la variance avec la fréquence.
 
 ```{r}
 library(corrplot)
-X <- scale(xtrain[,sample], scale = TRUE, center = TRUE)
+X <- scale(x.train[,sample], scale = TRUE, center = TRUE)
 C <- cor(X)
 corrplot(C)
 ```
-Nous constatons que la corrélation des variables entre elles diminuent avec la fréquence. La corrélation entre $X1$ et $X50$ est plus importante qu'entre les variables $X1$ et $X700$.
+Nous constatons que la corrélation des variables entre elles diminuent avec la fréquence. La corrélation entre $X1$ et $X50$ est plus importante qu'entre les variables $X1$ et $X700$. Nous pouvons suppposer dès maintenant que l'analyse exploratoire va être compliquée considérant la corrélation des variables. Tentons quand même une analyse par composantes principales pour confirmer la forte corrélation des variables.
 
 ## 2 - Analyse par composantes principales
 ```{r message=TRUE, warning=FALSE}
 library(FactoMineR)
 library(factoextra)
-pca.res <- PCA(xtrain,graph = FALSE, scale.unit = TRUE)
-fviz_eig(pca.res,main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
+pca.res <- PCA(x.train,graph = FALSE, scale.unit = TRUE)
+fviz_eig(pca.res,
+         main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
 
-vectp <- eigen(cor(xtrain))$vectors
-valp <- eigen(cor(xtrain))$values[1:6]
-```
-Refaisons maintenant l'analyse préliminaire avec les 6 premières dimensions.
-
-Sélectionnons les individus 1, 2, 3, 4, 5 et 39.
-
-```{r}
-y <- c(1:5,39)
-x <- scale(xtrain[y,], scale = TRUE , center = TRUE)
-C.sample <- cor(x)
-corrplot(C.sample)
+vectp <- eigen(cor(x.train))$vectors
+valp <- eigen(cor(x.train))$values[1:6]
 ```
 
+Le graphique montre que les 2 voire 3 premières variables contiennent toute l'information. Par conséquent, les valeurs propres des variables suivantes tendent rapidement vers 0. Si nous voulons faire une analyse plus poussée, il faudra considérer de pénaliser les paramètres (Ridge ou LASSO).
 
-Afin de gagner en lisibilité, selectionnons quelques individus (1,2,3,4,5 et 39) et quelques variables (celles dont le cos2 est important). Voici les graphiques obtenus:
+Réalisons maintenant une ACP sur les 5 premiers axes principaux en faisant apparaître le $cos2$. Le sixième axe n'est pas représentable. Voici les graphiques obtenus:
 
 ```{r}
 par(mfrow=c(3,2))
-fviz_pca_biplot(pca.res,axes = c(1,2),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.99))
-fviz_pca_biplot(pca.res,axes = c(2,3),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.5))
-fviz_pca_biplot(pca.res,axes = c(3,4),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.1))
-fviz_pca_biplot(pca.res,axes = c(4,5),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.01))
-fviz_pca_biplot(pca.res,axes = c(5,1),label="ind",col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),select.var = list(cos2 = 0.9))
+fviz_pca_biplot(pca.res,axes = c(1,2),label="ind",
+                col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
+                select.var = list(cos2 = 0.5))
+fviz_pca_biplot(pca.res,axes = c(2,3),label="ind",
+                col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
+                select.var = list(cos2 = 0.3))
+fviz_pca_biplot(pca.res,axes = c(3,4),label="ind",
+                col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
+                select.var = list(cos2 = 0.1))
+fviz_pca_biplot(pca.res,axes = c(4,5),label="ind",
+                col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
+                select.var = list(cos2 = 0.01))
+fviz_pca_biplot(pca.res,axes = c(5,6),label="ind",
+                col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
+                select.var = list(cos2 = 0.1))
+fviz_pca_biplot(pca.res,axes = c(6,1),label="ind",
+                col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
+                select.var = list(cos2 = 0.1))
+```
+
+
+Selectionnons les individus 1,2,3,4,5 et 39.
+```{r}
+y <- c(1:5,39)
+x <- scale(x.train[y,], scale = TRUE , center = TRUE)
+C.sample <- cor(x)
+corrplot(C.sample)
 ```
 
 ## 3 - Codage de la fonction reconstruct
@@ -168,42 +204,40 @@ Reconstruisons le nuage des variables dans les 6 premières dimensions.
 ```{r message=FALSE, warning=FALSE}
 library(caret)
 par(mfrow=c(2,3))
-y <- c(1:5,39)
 for (i in y){
-  glmModel <- glm(ytrain[i]~.,data = xtrain[i,])
+  glmModel <- glm(ytrain[i]~.,data = x.train[i,])
   Preds <- predict(glmModel,type="response")
   plot(seq(1:700),xtrain[i,],
        main = paste("RMSE = ",round(c(RMSE(ytrain[i],Preds)),2),"\n MAE = ",round(c(MAE(ytrain[i],Preds)),4)),
        type = "l",
-       xlab = "Fréquences",ylab=paste("Cookie ",i," max = ",round(max(xtrain[i,]),3)))
-  abline(v = which.max(xtrain[i,]),col="red",lty=2)
-  abline(h = max(xtrain[i,]),col="red",lty=2)
-  text(which.max(xtrain[i,]),1,max(xtrain[i,]),col="red")
+       xlab = "Fréquences",ylab=paste("Cookie ",i," max = ",round(max(x.train[i,]),3)))
+  abline(v = which.max(x.train[i,]),col="red",lty=2)
+  abline(h = max(x.train[i,]),col="red",lty=2)
+  text(which.max(x.train[i,]),1,max(x.train[i,]),col="red")
 }
 ```
 Il est difficile de comparer les courbes entre elles car la forme générale semble identique. Prenons un critère (le maximum) afin de comparer ces courbes. Nous constatons que le maximum des courbes est différent:
 
-
-
 ```{r}
-round(apply(xtrain[y,],1,max),3)
+round(apply(x.train[y,],1,max),3)
 ```
 De même, nous pouvons comparer les fréquences pour lesquelles ce maximum est atteint. La tendance confirme que le maximum est atteint pour les plus hautes fréquences (Nous pouvions nous en douter grpahiquement). Cependant, ces fréquences ne sont pas identiques.
 ```{r}
-round(apply(xtrain[y,],1,which.max),3)
+round(apply(x.train[y,],1,which.max),3)
 ```
-
+Réappliquons cette méthode sur la variable $X24$ afin de déterminer l'erreur des moindres-carrés (RMSE) et 
 
 ```{r}
 par(mfrow=c(1,1))
 indice <- 24
-glmModel <- glm(ytrain[indice]~.,data=xtrain[indice,])
+glmModel <- glm(ytrain[indice]~.,data=x.train[indice,])
 Preds <- predict(glmModel,type="response")
-plot(seq(1:700),xtrain[indice,],main = paste("RMSE = ",round(c(RMSE(xtrain[indice,],Preds)),2),"\n MAE = ",round(c(MAE(xtrain[indice,],Preds)),4)),type = "l",xlab = "Fréquences",ylab=paste("Cookie ",indice))
-abline(v = which.max(xtrain[indice,]),col="red",lty=2)
-abline(h = max(xtrain[indice,]),col="red",lty=2)
-text(500,max(xtrain[indice,]),max(xtrain[indice,]),col="red")
+plot(seq(1:700),x.train[indice,],main = paste("RMSE = ",round(RMSE(x.train[indice,],Preds),2),"\n MAE = ",round(MAE(x.train[indice,],Preds),4)),type = "l",xlab = "Fréquences",ylab=paste("Cookie ",indice))
+abline(v = which.max(x.train[indice,]),col="red",lty=2)
+abline(h = max(x.train[indice,]),col="red",lty=2)
+text(500,max(x.train[indice,]),max(x.train[indice,]),col="red")
 ```
+
 
 
 
@@ -223,7 +257,7 @@ $\lambda=0$ : pas de pénalisation Ridge, revient à minimiser Somme des Carrés
 $\lambda=+\infty$ : pénalisation Ridge maximale.
 
 ```{r}
-x <- cbind(ytrain,xtrain)
+x <- cbind(ytrain,x.train)
 
 xRidge_train <- model.matrix(ytrain~., data=x)
 ridge_fit <- glmnet(xRidge_train, ytrain,alpha = 0, lambda=gridRidge)
@@ -244,7 +278,7 @@ plot(ridge_fit$lambda[y],xlim=c(0,10),type="o")
 
 
 ```{r}
-theta_chap <- function(k){ (t(xtrain)*xtrain+k*diag(1,nrow=p))^(-1)*t(xtrain)*ytrain
+theta_chap <- function(k){ (t(x.train)*x.train+k*diag(1,nrow=p))^(-1)*t(x.train)*ytrain
 }
 k <- seq(0,10,by = 1)
 plot(unlist(theta_chap(k)),main="Régression Ridge",ylab="theta_chap",xlab="kappa",type="o",xlim=c(0,10),col="blue")
@@ -254,7 +288,7 @@ plot(unlist(theta_chap(k)),main="Régression Ridge",ylab="theta_chap",xlab="kapp
 
 ```{r}
 y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
-x.scale <- as.data.frame(cbind(y.scale,scale(xtrain , scale=TRUE , center=TRUE) ))
+x.scale <- as.data.frame(cbind(y.scale,scale(x.train , scale=TRUE , center=TRUE) ))
 xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
 ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
 plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
@@ -267,7 +301,7 @@ text(which.max(ridge_fit.scale$a0),0,which.max(ridge_fit.scale$a0),col="red")
 
 ## Centrage de X et non de Y
 ```{r}
-x.scale <- as.data.frame(cbind(ytrain,scale(xtrain , scale=TRUE , center=TRUE) ))
+x.scale <- as.data.frame(cbind(ytrain,scale(x.train , scale=TRUE , center=TRUE) ))
 xRidge_train.scale <- model.matrix(ytrain~., data=x.scale)
 ridge_fit.scale <- glmnet(xRidge_train.scale, ytrain,alpha = 0, lambda=gridRidge)
 plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
@@ -280,7 +314,7 @@ ridge_fit$a0[which.max(ridge_fit.scale$a0)]
 ## Centrage de Y et non de X
 ```{r}
 y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
-x.scale <- as.data.frame(cbind(y.scale,xtrain))
+x.scale <- as.data.frame(cbind(y.scale,x.train))
 xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
 ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
 plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
@@ -328,7 +362,7 @@ Le jeu de validation n'est pas équilibré non plus. Cependant, les deux jeux (a
 ```{r}
 library(pls)
 set.seed(1)
-cvseg <- cvsegments(nrow(xtrain),k=4,type="random")
+cvseg <- cvsegments(nrow(x.train),k=4,type="random")
 ```
 
 
@@ -336,20 +370,20 @@ cvseg <- cvsegments(nrow(xtrain),k=4,type="random")
 ```{r}
 library(MASS)
 par(mfrow=c(1,2))
-plot(lm.ridge(ytrain~.,data = xtrain,lambda=seq(0,1,0.01)))
-plot(lm.ridge(ytrain~.,data = xtrain,lambda=seq(0,0.2,0.001)))
+plot(lm.ridge(ytrain~.,data = x.train,lambda=seq(0,1,0.01)))
+plot(lm.ridge(ytrain~.,data = x.train,lambda=seq(0,0.2,0.001)))
 ```
 
 
 ```{r}
-plot(lm.ridge(ytrain~.,data = xtrain,lambda=gridRidge),xlim=c(0,20))
+plot(lm.ridge(ytrain~.,data = x.train,lambda=gridRidge),xlim=c(0,20))
 ```
 
 ```{r}
 choix.kappa <- function(kappamax,cvseg,nbe=100){
   press=rep(0,nbe)
   for (i in 1:length(cvseg)){
-    cook.app <- cbind(ytrain,xtrain)
+    cook.app <- cbind(ytrain,x.train)
     valid <- cook.app[unlist(cvseg[i]),]
     
     modele <- lm.ridge(ytrain~.,data=cook.app[unlist(cvseg[-i]),],lambda = seq(0,kappamax,length=nbe))
@@ -365,15 +399,15 @@ choix.kappa <- function(kappamax,cvseg,nbe=100){
 
 ```{r}
 res <- choix.kappa(0.5,cvseg,nb=1000)
-plot(seq(0,0.5,length = 1000), res$press,main = "PRESS",xlab="nombre d'échantillons",ylab="Predicted Sum of Squares")
+plot(seq(0,0.5,length = 1000), res$press,main = "PRESS",xlab="nombre d'échantillons",ylab="Predicted Sum of Squares",type="l")
 ```
 ```{r}
 kappaet <- res$kappaet
-x.ridge <- lm.ridge(ytrain~.,data = xtrain,lambda = kappaet)
+x.ridge <- lm.ridge(ytrain~.,data = x.train,lambda = kappaet)
 coeff <- coef(x.ridge)
 ```
 
-
+Nous créons une fonction qui permet d'afficher les résidus
 ```{r}
 plot.res=function(x,y,titre="titre")
 {
@@ -383,15 +417,16 @@ plot.res=function(x,y,titre="titre")
 }
 ```
 
-
+Nous allons maintenant comparer les valeurs réelles de la teneur en sucre ($ytrain$) avec la prédiction que nous faisons avec notre modèle de régression Ridge.
 ```{r}
 par(mfrow=c(1,2))
-cook.app <- cbind(ytrain,xtrain)
+cook.app <- cbind(ytrain,x.train)
 fit.rid <- rep(coeff[1],nrow(cook.app))+as.vector(coeff[-1]%*%t(data.matrix(cook.app[,-1])))
 plot(fit.rid,cook.app[,1],main="Y_pred en fonction de ytrain",xlab="Valeurs prédites",ylab = "ytrain")
 abline(a = 0 , b = 1,col="red")
 res.rid <- fit.rid-cook.app[,1]
 plot.res(fit.rid,res.rid,titre="Résidus")
+#text(fit.rid,res.rid,round(res.rid,2))
 ```
 Nous voyons sur la figure de gauche que l'estimation de $ytrain$ est bonne car les points sont tous (ou presque) sur la droite $y=x$.
 ```{r}
