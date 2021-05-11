@@ -6,7 +6,7 @@ output: pdf_document
 ---
 # Introduction
 
-Le but de cette analyse est de créer un modèle qui permet de déterminer la teneur en sucre des cookies par spectrométrie. Le spectre s'étend sur 700 fréquences (variables explicatives) sur 72 individus (cookies). En travaillant sur ce jeu de données, les méthodes de statistique inférentielle rencontrent rapidement les limites des jeux de données de taille importante. Il va falloir déterminer quelques variables explicatives dont le $cos2$ est important pour pouvoir modéliser plus facilement le problème.
+Le but de cette analyse est de créer un modèle qui permet de déterminer la teneur en sucre des cookies par spectrométrie. Le spectre s'étend sur 700 fréquences (variables explicatives) sur 72 individus (cookies). En travaillant sur ce jeu de données, les méthodes de statistique inférentielle rencontrent rapidement les limites des jeux de données de taille importante. Il va falloir déterminer quelques variables explicatives pour pouvoir modéliser plus facilement le problème.
 
 # 1 - Un peu de théorie
 ```{r}
@@ -54,6 +54,7 @@ Et finalement rajoutons un bruit gaussien à notre modèle.
 
 
 ```{r}
+set.seed(1)
 sigma2 <- 0.1
 eps <- rnorm(700,mean=0,sd=sigma2)
 x.train <- xtrain + eps
@@ -64,6 +65,7 @@ s <- summary(res.lm)
 Mais comment choisir les paramètres du bruit gaussien?
 
 ```{r}
+par(mfrow=c(3,2))
 for (i in c(1,0.7,0.5,0.2,0.1,0.01))
 {
   eps <- rnorm(700,mean=0,sd=sigma2)
@@ -129,7 +131,7 @@ X <- scale(x.train[,sample], scale = TRUE, center = TRUE)
 C <- cor(X)
 corrplot(C)
 ```
-Nous constatons que la corrélation des variables entre elles diminuent avec la fréquence. La corrélation entre $X1$ et $X50$ est plus importante qu'entre les variables $X1$ et $X700$. Nous pouvons suppposer dès maintenant que l'analyse exploratoire va être compliquée considérant la corrélation des variables. Tentons quand même une analyse par composantes principales pour confirmer la forte corrélation des variables.
+Nous pouvons suppposer dès maintenant que l'analyse exploratoire va être compliquée considérant la corrélation des variables. Tentons quand même une analyse par composantes principales pour confirmer la forte corrélation des variables.
 
 ## 2 - Analyse par composantes principales
 ```{r message=TRUE, warning=FALSE}
@@ -150,7 +152,7 @@ Nous gardons les 9 premières dimensions dont les valeurs propres rassemblent 70
 x.pca <- (x.train*vectp)[,1:9]
 ```
 
-L'ACP ne permet pas de réduire les dimensions en suivant la règle du "coude" sauf si nous voulons garder qu'un axe et perdre 69% de l'information.
+L'ACP ne permet pas de réduire les dimensions en suivant la règle du "coude" sauf si nous voulons garder qu'un axe et perdre 67% de l'information.
 Les valeurs propres des variables suivantes tendent vers 0. Si nous voulons faire une analyse plus poussée, il faudra considérer de pénaliser les paramètres (Ridge ou LASSO).
 
 Réalisons maintenant une ACP sur les 5 premiers axes principaux en faisant apparaître le $cos2$. Voici les graphiques obtenus:
@@ -225,19 +227,20 @@ for (i in y){
        xlab = "Fréquences",ylab=paste("Cookie ",i," max = ",round(max(x.pca[i,]),3)))
   abline(v = which.max(x.pca[i,]),col="red",lty=2)
   abline(h = max(x.pca[i,]),col="red",lty=2)
-  text(which.max(x.pca[i,])-100,1,which.max(x.pca[i,]),col="red")
 }
 ```
-Il est difficile de comparer les courbes entre elles car la forme générale semble identique. Prenons un critère (le maximum) afin de comparer ces courbes. Nous constatons que le maximum des courbes est différent:
+Il est difficile de comparer les courbes entre elles car la forme générale n'est pas identique. Prenons un critère (le maximum) afin de comparer ces courbes. Nous constatons que le maximum des courbes est différent:
 
+
+Voici les maxima des différents graphiques en fonction des individus.
 ```{r}
 round(apply(x.pca[y,],1,max),3)
 ```
-De même, nous pouvons comparer les fréquences pour lesquelles ce maximum est atteint. La tendance confirme que le maximum est atteint pour les plus hautes fréquences (Nous pouvions nous en douter graphiquement). Cependant, ces fréquences ne sont pas identiques.
+De même, nous pouvons comparer les fréquences pour lesquelles ce maximum est atteint.
 ```{r}
 round(apply(x.pca[y,],1,which.max),3)
 ```
-Réappliquons cette méthode sur la variable $X24$ afin de déterminer l'erreur des moindres-carrés (RMSE) et 
+Réappliquons cette méthode sur la variable $X24$ afin de déterminer l'erreur des moindres-carrés (RMSE) et l'erreur moyenne (MAE).
 
 ```{r}
 par(mfrow=c(1,1))
@@ -250,29 +253,31 @@ abline(h = max(x.pca[indice,]),col="red",lty=2)
 text(5,max(x.pca[indice,])-0.1,round(max(x.pca[indice,]),3),col="red")
 ```
 
+Procédons maintenant à la recherche d'un modèle ajusté à partir du résultat de la PCA.
+Nous allons définir un modèle en cherchant à minimiser l'AIC de chaque modèle en partant du modèle complet.
+
 ```{r}
 library(MASS)
 glmModel <- glm(ytrain~.,data = x.pca)
-stepAIC(glmModel)
+stepAIC(glmModel,direction = "both")
+```
+
+```{r}
 stepAIC(glmModel)$anova
 ```
+
 
 ```{r}
 plot(stepAIC(glmModel)$anova[,6],main="Evolution de l'AIC en fonction des itérations",xlab="Nombre d'itérations",ylab="AIC",type="l")
 ```
 
-
+En comparant le modèle complet sur le modèle $X3$+$X5$, nous constatons 
 
 Nous retenons finalement le modèle $X3$+$X5$
 ```{r}
 res.lm2 <- glm(ytrain~X3+X5,data = x.pca)
-anova(res.lm,res.lm2)
-
+anova(res.lm2,res.lm)
 ```
-
-
-
-
 
 
 # 3 - Régression pénalisée
@@ -307,18 +312,27 @@ ridge_fit$a0[which.max(ridge_fit$a0)]
 text(which.max(ridge_fit$a0),-5,which.max(ridge_fit$a0),col="red")
 ```
 
-```{r}
-
-```
-
-
 
 ```{r}
-theta_chap <- function(k){ (t(x)*x+k*diag(1,nrow=p))^(-1)*t(x)*ytrain
+theta_chap <- function(k){ (t(x.pca)*x.pca+k*diag(1,nrow=nrow(x.pca)))^(-1)*t(x)*ytrain
 }
-k <- seq(1,10,by=0.01)
-plot(unlist(theta_chap(k)),main="Régression Ridge",ylab="theta_chap",xlab="kappa",type="l",xlim=c(1,10),col="blue")
+k <- seq(1,100,by=0.1)
+
+plot(unlist(theta_chap(k)),main="Régression Ridge",ylab="theta_chap",xlab="kappa",type="l",xlim=c(1,100),col="blue")
+
+theta.ridge <- which.max(unlist(theta_chap(k)))
+abline(v=which.max(unlist(theta_chap(k))),col="red",lty=2)
 ```
+Nous en déduisons les valeurs ajustées de $Y_{ridge}$ avec un $\theta_{ridge}$=42 et $\hat{\sigma}^2=\frac{SCR(\hat{\theta_{ridge}})}{n-p}=\sum_i(Y_i-x_i\theta)^2$
+
+```{r}
+y.ridge <- function(kappa){
+  sigma.chap <- apply((ytrain-x.pca*theta_chap(kappa))**2,1,sum)
+  return(sigma.chap*(x.pca*theta_chap(kappa))+ytrain*diag(ytrain))
+}
+plot(y.ridge(k))
+```
+
 
 ## Centrage de Y et de X
 
@@ -399,27 +413,39 @@ Le jeu de validation n'est pas équilibré non plus. Cependant, les deux jeux (a
 ```{r message=FALSE, warning=FALSE}
 library(pls)
 library(leaps)
-set.seed(1)
-B <- 3
-folds <- cvsegments(nrow(x.pca),B, type="random")
+
+B <- 5
+folds <- cvsegments(ncol(x.pca),B, type="random")
 ```
 Nous créons sur notre jeu de données un 3-fold pour une validation croisée et nous initialisons notre plan d'expérience.
+Tentons d'estimer l'erreur de chaque modèle de la validation croisée afin de choisir le meilleur d'entre eux.
 
 ```{r}
 lmtot = lm(ytrain~., data=x.pca)
-X = as.data.frame(model.matrix(lmtot))
+X = model.matrix(lmtot)
+cv.errors=matrix(NA,B,9, dimnames=list(NULL, paste0("Dim",1:9)))
+cv.bestmod=matrix(NA,B,9, dimnames=list(NULL, paste0("Dim",1:9)))
+```
 
-for(b in 1:B){
-  subsetb=unlist(folds[[b]])
-  best.fit=regsubsets(ytrain~.,data=X[-subsetb,],really.big = TRUE)
-  # pour chaque taille de modèle
-  for(j in 1:10){
-    coefj=coef(best.fit,id=j)
-    pred=x[subsetb,names(coefj)]%*%coefj
-    cv.errors[b,j]=mean( (ytrain[subsetb]-pred)^2)
-    cv.bestmod[b,j]=paste(names(coef(best.fit,id=j)[-1]),collapse="+")
-  }
-}
+
+Sur chaque échantillon x.pca[-subsetb], nous calculons pour chaque modèle:
+-son meilleur ajustement;
+-son erreur de prédiction sur le x.test[subsetb,];
+-le nom des variables retenus dans Mk.
+
+
+```{r}
+# for(b in 1:B){
+#   subsetb=unlist(folds[[b]])
+#   best.fit=regsubsets(ytrain~.,data=x.pca[-subsetb,],nvmax=10)
+#   # pour chaque taille de modèle
+#   for(j in 1:9){
+#     coefj=coef(best.fit,id=j)
+#     pred=X[subsetb,names(coefj)]*coefj
+#     cv.errors[b,j]=mean((ytrain[subsetb]-pred)**2)
+#     cv.bestmod[b,j]=paste(names(coef(best.fit,id=j)[-1]),collapse="+")
+#   }
+# }
 ```
 
 
@@ -427,16 +453,11 @@ for(b in 1:B){
 
 ```{r}
 library(MASS)
-
-plot(lm.ridge(ytrain~.,data = x.pca,lambda=seq(0,100,0.1)))
-```
-
-
-```{r}
-gridRidge <- 10^seq(0,2,0.01)
-plot(lm.ridge(ytrain~.,data = x.pca,lambda=gridRidge),main="",xlim=c(0,20))
+plot(lm.ridge(ytrain~.,data = x.pca,lambda=seq(0,100,0.1)),ylab="coefficients")
 abline(h=0)
 ```
+
+Créons maintenant une fonction qui nous permettra d'obtenir le $\kappa$ optimal qui minimise l'erreur généralisée du modèle.
 
 ```{r}
 choix.kappa <- function(kappamax,cvseg,nbe=100){
@@ -455,18 +476,20 @@ choix.kappa <- function(kappamax,cvseg,nbe=100){
 }
 ```
 
-
+Analysons graphiquement le résultat:
 ```{r}
-res <- choix.kappa(0.5,cvseg,nb=1000)
-plot(seq(0,0.5,length = 1000), res$press,main = "PRESS",xlab="nombre d'échantillons",ylab="Predicted Sum of Squares",type="l")
+res <- choix.kappa(200,cvseg,nb=1000)
+plot(seq(1,200,length = 1000), res$press,main = "PRESS",xlab="nombre d'échantillons",ylab="Predicted Sum of Squares",type="l")
 ```
+Plus le $\kappa_{max}$ est élevé, plus l'erreur du modèle peut être réduite.
+
 ```{r}
 kappaet <- res$kappaet
 x.ridge <- lm.ridge(ytrain~.,data = x.pca,lambda = kappaet)
 coeff <- coef(x.ridge)
 ```
 
-Nous créons une fonction qui permet d'afficher les résidus
+Nous créons une fonction qui permet d'afficher les résidus.
 ```{r}
 plot.res=function(x,y,titre="titre")
 {
@@ -481,18 +504,19 @@ Nous allons maintenant comparer les valeurs réelles de la teneur en sucre ($ytr
 par(mfrow=c(1,2))
 cook.app <- cbind(ytrain,x.pca)
 fit.rid <- rep(coeff[1],nrow(cook.app))+as.vector(coeff[-1]%*%t(data.matrix(cook.app[,-1])))
-plot(fit.rid,cook.app[,1],main="Y_pred en fonction de ytrain",xlab="Valeurs prédites",ylab = "ytrain")
+qqplot(fit.rid,cook.app[,1],main="Y_pred en fonction de ytrain",xlab="Valeurs prédites",ylab = "ytrain")
 abline(a = 0 , b = 1,col="red")
 res.rid <- fit.rid-cook.app[,1]
 plot.res(fit.rid,res.rid,titre="Résidus")
-#text(fit.rid,res.rid,round(res.rid,2))
 ```
-Nous voyons sur la figure de gauche que l'estimation de $ytrain$ est bonne car les points sont tous (ou presque) sur la droite $y=x$.
+
+
+
 ```{r}
-cook.test <- cbind(ytest,xtest)
-ychap <- rep(coeff[1],nrow(cook.test))+as.vector(coeff[-1]%*%t(data.matrix(cook.test[,-1])))
-plot(ychap,cook.test[,1],xlab = "Valeurs prédites",ylab="ytrain")
-mean((cook.test[,1]-ychap**2))
-abline(a = 0 , b = 1 , col = "red")
+# cook.test <- cbind(ytest,xtest)
+# ychap <- rep(coeff[1],nrow(cook.test))+as.vector(coeff[-1]%*%t(data.matrix(cook.test[,-1])))
+# plot(ychap,cook.test[,1],xlab = "Valeurs prédites",ylab="ytrain")
+# mean((cook.test[,1]-ychap**2))
+# abline(a = 0 , b = 1 , col = "red")
 ```
 
