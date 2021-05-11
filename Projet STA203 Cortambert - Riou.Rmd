@@ -1,6 +1,6 @@
 ---
 title: "Projet STA203 Cortambert - Riou"
-author: "Pierre Cortambret - William Riou"
+author: "Pierre Cortambert - William Riou"
 date: "28/04/2021"
 output: pdf_document
 ---
@@ -50,7 +50,7 @@ ytest <- xtest[,1]
 xtest <- xtest[,-1]
 dim(xtest)
 ```
-Et finalement rajoutons un peu de bruit à notre modèle.
+Et finalement rajoutons un bruit gaussien à notre modèle.
 
 
 ```{r}
@@ -64,15 +64,14 @@ s <- summary(res.lm)
 Mais comment choisir les paramètres du bruit gaussien?
 
 ```{r}
-par(mfrow=c(3,2))
 for (i in c(1,0.7,0.5,0.2,0.1,0.01))
 {
   eps <- rnorm(700,mean=0,sd=sigma2)
   x.train <- xtrain + eps
-  plot(seq(1,700),x.train[1,],main=c("sigma =",i),type="l")
+  plot(seq(1,700),x.train[1,],main=c("Données bruitées - sigma =",i),type="l",xlab="Fréquences",ylab="X1")
 }
 ```
-Afin que notre modèle ne soit pas trop bruité et que ce soit réaliste nous choisissons unevaleur de $\sigma$ de 0.1.
+Afin que notre modèle ne soit pas trop bruité et que nos données ne soient pas "noyées" dans le bruit pour que ce soit réaliste, nous choisissons une valeur de $\sigma$ de 0.1.
 
 
 # 2 - Analyse exploratoire
@@ -104,20 +103,25 @@ boxplot(t(x.train),main="Représentation en boxplot \n du jeu d'apprentissage",x
 matplot(x.train,main="Représentation du \n jeu d'apprentissage",xlab="Cookies",ylab = "xtrain",ylim=c(0,2),type="l")
 
 ```
-Nous remarquons une tendance générale sur les 40 individus. Nous remarquons aussi que l'écart-type des variables augmentent avec la fréquence.
+Nous remarquons une tendance générale sur les 40 individus.
 
 Une étude n'est pas faisable avec 700 variables explicatives. Il faut procéder préalablement à une analyse par composantes principales. 
 
 Ne retenons que quelques variables de façon aléatoire par les 700 variables.
 Créons donc un échantillon avec les variables $X1$,$X10$,$X50$,$X100$,$X250$,$X500$,$X600$ et $X700$.
 ```{r}
+par(mfrow=c(1,2))
 sample<-c(1,10,50,100,250,500,600,700)
 x.sample<-apply(x.train[,sample],2,sd)
+x.mean<-apply(x.train[,sample],2,mean)
 plot(x.sample,
-     main="écart-type des échantillons X1, X10, X50, X100, X500 et X700",
+     main="écart-type des échantillons\n X1, X10, X50, X100, X500 et X700",
      ylab="écart-type",type="o",col="red")
+plot(x.mean,
+     main="moyenne des échantillons\n X1, X10, X50, X100, X500 et X700",
+     ylab="moyenne",type="o",col="blue")
 ```
-Le graphique nous montre effectivement une augmentation de la variance avec la fréquence.
+Le graphique nous montre effectivement une augmentation de la moyenne avec la fréquence. L'écart-type ne semble pas suivre de tendance.
 
 ```{r}
 library(corrplot)
@@ -134,14 +138,22 @@ library(factoextra)
 pca.res <- PCA(x.train,graph = FALSE, scale.unit = TRUE)
 fviz_eig(pca.res,
          main = "Histogramme des valeurs propres de l'analyse par composantes principales",addlabels = TRUE)
-
+```
+```{r}
 vectp <- eigen(cor(x.train))$vectors
-valp <- eigen(cor(x.train))$values[1:6]
+valp <- eigen(cor(x.train))$values
+which(get_eig(pca.res)[,3]<70)
+barplot(get_eig(pca.res)[1:9,2],main="Représentation de 70% de l'information")
+```
+Nous gardons les 9 premières dimensions dont les valeurs propres rassemblent 70% de l'information.
+```{r}
+x.pca <- (x.train*vectp)[,1:9]
 ```
 
-Le graphique montre que les 2 voire 3 premières variables contiennent toute l'information. Par conséquent, les valeurs propres des variables suivantes tendent rapidement vers 0. Si nous voulons faire une analyse plus poussée, il faudra considérer de pénaliser les paramètres (Ridge ou LASSO).
+L'ACP ne permet pas de réduire les dimensions en suivant la règle du "coude" sauf si nous voulons garder qu'un axe et perdre 69% de l'information.
+Les valeurs propres des variables suivantes tendent vers 0. Si nous voulons faire une analyse plus poussée, il faudra considérer de pénaliser les paramètres (Ridge ou LASSO).
 
-Réalisons maintenant une ACP sur les 5 premiers axes principaux en faisant apparaître le $cos2$. Le sixième axe n'est pas représentable. Voici les graphiques obtenus:
+Réalisons maintenant une ACP sur les 5 premiers axes principaux en faisant apparaître le $cos2$. Voici les graphiques obtenus:
 
 ```{r}
 par(mfrow=c(3,2))
@@ -157,19 +169,19 @@ fviz_pca_biplot(pca.res,axes = c(3,4),label="ind",
 fviz_pca_biplot(pca.res,axes = c(4,5),label="ind",
                 col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
                 select.var = list(cos2 = 0.01))
-#fviz_pca_biplot(pca.res,axes = c(5,6),label="ind",
- #               col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
- #               select.var = list(cos2 = 0.1))
+# fviz_pca_biplot(pca.res,axes = c(5,1),label="ind",
+#               col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
+#               select.var = list(cos2 = 0.1))
 fviz_pca_biplot(pca.res,axes = c(5,1),label="ind",
                 col.var = "cos2",select.ind = list(name=c("1","2","3","4","5","39")),
                 select.var = list(cos2 = 0.1))
 ```
 
-
 Selectionnons les individus 1,2,3,4,5 et 39.
+
 ```{r}
 y <- c(1:5,39)
-x <- scale(x.train[y,], scale = TRUE , center = TRUE)
+x <- scale(x.pca[y,], scale = TRUE , center = TRUE)
 C.sample <- cor(x)
 corrplot(C.sample)
 ```
@@ -179,8 +191,8 @@ corrplot(C.sample)
 Nous construisons la fonction reconstruct qui construit dans le nuage des variables dans les $nr$ premières dimensions. Nous ajoutons sur cette représentation le vecteur moyenne $Xm$ et le vecteur des écarts-type $Xsd$.
 
 ```{r}
-Xm <- apply(xtrain , 1 , mean)
-Xsd <- apply(xtrain , 1 , sd)
+Xm <- apply(x.pca , 1 , mean)
+Xsd <- apply(x.pca , 1 , sd)
 
 reconstruct <- function(res,nr,Xm,Xsd){
   par(mfrow=c(abs(nr/2)+1,2))
@@ -205,37 +217,57 @@ Reconstruisons le nuage des variables dans les 6 premières dimensions.
 library(caret)
 par(mfrow=c(2,3))
 for (i in y){
-  glmModel <- glm(ytrain[i]~.,data = x.train[i,])
+  glmModel <- glm(ytrain[i]~.,data = x.pca[i,])
   Preds <- predict(glmModel,type="response")
-  plot(seq(1:700),xtrain[i,],
-       main = paste("RMSE = ",round(c(RMSE(ytrain[i],Preds)),2),"\n MAE = ",round(c(MAE(ytrain[i],Preds)),4)),
+  plot(seq(1:9),x.pca[i,],
+       main = paste("RMSE=",round(RMSE(ytrain[i],Preds),2),"\n MAE=",round(MAE(ytrain[i],Preds),4)),
        type = "l",
-       xlab = "Fréquences",ylab=paste("Cookie ",i," max = ",round(max(x.train[i,]),3)))
-  abline(v = which.max(x.train[i,]),col="red",lty=2)
-  abline(h = max(x.train[i,]),col="red",lty=2)
-  text(which.max(x.train[i,]),1,max(x.train[i,]),col="red")
+       xlab = "Fréquences",ylab=paste("Cookie ",i," max = ",round(max(x.pca[i,]),3)))
+  abline(v = which.max(x.pca[i,]),col="red",lty=2)
+  abline(h = max(x.pca[i,]),col="red",lty=2)
+  text(which.max(x.pca[i,])-100,1,which.max(x.pca[i,]),col="red")
 }
 ```
 Il est difficile de comparer les courbes entre elles car la forme générale semble identique. Prenons un critère (le maximum) afin de comparer ces courbes. Nous constatons que le maximum des courbes est différent:
 
 ```{r}
-round(apply(x.train[y,],1,max),3)
+round(apply(x.pca[y,],1,max),3)
 ```
-De même, nous pouvons comparer les fréquences pour lesquelles ce maximum est atteint. La tendance confirme que le maximum est atteint pour les plus hautes fréquences (Nous pouvions nous en douter grpahiquement). Cependant, ces fréquences ne sont pas identiques.
+De même, nous pouvons comparer les fréquences pour lesquelles ce maximum est atteint. La tendance confirme que le maximum est atteint pour les plus hautes fréquences (Nous pouvions nous en douter graphiquement). Cependant, ces fréquences ne sont pas identiques.
 ```{r}
-round(apply(x.train[y,],1,which.max),3)
+round(apply(x.pca[y,],1,which.max),3)
 ```
 Réappliquons cette méthode sur la variable $X24$ afin de déterminer l'erreur des moindres-carrés (RMSE) et 
 
 ```{r}
 par(mfrow=c(1,1))
 indice <- 24
-glmModel <- glm(ytrain[indice]~.,data=x.train[indice,])
-Preds <- predict(glmModel,type="response")
-plot(seq(1:700),x.train[indice,],main = paste("RMSE = ",round(RMSE(x.train[indice,],Preds),2),"\n MAE = ",round(MAE(x.train[indice,],Preds),4)),type = "l",xlab = "Fréquences",ylab=paste("Cookie ",indice))
-abline(v = which.max(x.train[indice,]),col="red",lty=2)
-abline(h = max(x.train[indice,]),col="red",lty=2)
-text(500,max(x.train[indice,]),max(x.train[indice,]),col="red")
+glmModel.indice <- glm(ytrain[indice]~.,data=x.train[indice,])
+Preds <- predict(glmModel.indice,type="response")
+plot(seq(1:9),x.pca[indice,],main = paste("RMSE=",round(RMSE(ytrain[indice],Preds),2),"\n MAE=",round(MAE(ytrain[indice],Preds),4)),type = "l",xlab = "Fréquences",ylab=paste("Cookie ",indice))
+abline(v = which.max(x.pca[indice,]),col="red",lty=2)
+abline(h = max(x.pca[indice,]),col="red",lty=2)
+text(5,max(x.pca[indice,])-0.1,round(max(x.pca[indice,]),3),col="red")
+```
+
+```{r}
+library(MASS)
+glmModel <- glm(ytrain~.,data = x.pca)
+stepAIC(glmModel)
+stepAIC(glmModel)$anova
+```
+
+```{r}
+plot(stepAIC(glmModel)$anova[,6],main="Evolution de l'AIC en fonction des itérations",xlab="Nombre d'itérations",ylab="AIC",type="l")
+```
+
+
+
+Nous retenons finalement le modèle $X3$+$X5$
+```{r}
+res.lm2 <- glm(ytrain~X3+X5,data = x.pca)
+anova(res.lm,res.lm2)
+
 ```
 
 
@@ -245,64 +277,69 @@ text(500,max(x.train[indice,]),max(x.train[indice,]),col="red")
 
 # 3 - Régression pénalisée
 
+Nous avons vu dans les premières parties lors de l'analyse exploratoire des données (ACP notamment) que les valeurs propres tendaient rapidement vers $0$. Pour contrecarrer ce phénomène, nous avions l'idée de procéder à une pénalisation extérieure (Ridge ou LASSO) du problème lagrangien (min SCR) vu $\textit{supra}$. Cette pénalisation va nous permettre de déterminer des coefficients $\lambda$. Ces coefficients pourront ensuite nous aider à trouver un modèle ajusté avec le nombre suffisant de paramètres (AIC) avec une erreur de généralisation minimale.
+
+
 ## 1 - 
+
+Commençons par créer un vecteur de $\lambda$ de $10^{-10}$ à $10^6$.
 
 ### lambda de 10^6 à 10^-10
 ```{r}
 library(glmnet)
 gridRidge <- 10^seq(6,-10,length=100)
 ```
-$\lambda=0$ : pas de pénalisation Ridge, revient à minimiser Somme des Carrés Résiduels.
+$\lambda=0$ : pas de pénalisation Ridge, revient à minimiser des Somme des Carrés Résiduels.
 
 $\lambda=+\infty$ : pénalisation Ridge maximale.
 
+Créons un modèle issue d'une régression linéaire généralisée (pénalisée) puis déterminons la valeur à partir de laquelle $\lambda$ plonge vers $0$.
+Tout d'abord, reprenons le jeu de données d'apprentissage initial que l'on nomme $x$.
 ```{r}
-x <- cbind(ytrain,x.train)
-
-xRidge_train <- model.matrix(ytrain~., data=x)
+x <- cbind(ytrain,x.pca)
+xRidge_train <- model.matrix(ytrain~., data=x.pca)
 ridge_fit <- glmnet(xRidge_train, ytrain,alpha = 0, lambda=gridRidge)
 plot(ridge_fit$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
-
 abline(h=ridge_fit$a0[which.max(ridge_fit$a0)],col="red",lty=2)
 abline(v=which.max((ridge_fit$a0)),col="red",lty=2)
+abline(h=0)
 ridge_fit$a0[which.max(ridge_fit$a0)]
 text(which.max(ridge_fit$a0),-5,which.max(ridge_fit$a0),col="red")
 ```
 
 ```{r}
-coef.ridge=coef(ridge_fit)[-1,]
-
-plot(ridge_fit$lambda[y],xlim=c(0,10),type="o")
 
 ```
 
 
+
 ```{r}
-theta_chap <- function(k){ (t(x.train)*x.train+k*diag(1,nrow=p))^(-1)*t(x.train)*ytrain
+theta_chap <- function(k){ (t(x)*x+k*diag(1,nrow=p))^(-1)*t(x)*ytrain
 }
-k <- seq(0,10,by = 1)
-plot(unlist(theta_chap(k)),main="Régression Ridge",ylab="theta_chap",xlab="kappa",type="o",xlim=c(0,10),col="blue")
+k <- seq(1,10,by=0.01)
+plot(unlist(theta_chap(k)),main="Régression Ridge",ylab="theta_chap",xlab="kappa",type="l",xlim=c(1,10),col="blue")
 ```
 
 ## Centrage de Y et de X
 
 ```{r}
 y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
-x.scale <- as.data.frame(cbind(y.scale,scale(x.train , scale=TRUE , center=TRUE) ))
-xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
+x.scale <- as.data.frame(cbind(y.scale,scale(x.pca , scale=TRUE , center=TRUE) ))
+xRidge_train.scale <- model.matrix(y.scale~., data=x.pca)
 ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
 plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
-abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
-abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
-ridge_fit$a0[which.max(ridge_fit.scale$a0)]
-text(which.max(ridge_fit.scale$a0),0,which.max(ridge_fit.scale$a0),col="red")
+abline(v = 20,col="red",lty=2)
+abline(h = ridge_fit.scale$a0[20],col="red",lty=2)
+abline(h = 0)
+ridge_fit$a0[20]
+text(15,0.05,ridge_fit.scale$a0[20],col="red")
 ```
-
+Nous obtenons une valeur du coefficient de l'intercept nulle.
 
 ## Centrage de X et non de Y
 ```{r}
-x.scale <- as.data.frame(cbind(ytrain,scale(x.train , scale=TRUE , center=TRUE) ))
-xRidge_train.scale <- model.matrix(ytrain~., data=x.scale)
+x.scale <- as.data.frame(cbind(ytrain,scale(x.pca , scale=TRUE , center=TRUE) ))
+xRidge_train.scale <- model.matrix(ytrain~., data=x.pca)
 ridge_fit.scale <- glmnet(xRidge_train.scale, ytrain,alpha = 0, lambda=gridRidge)
 plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
 
@@ -314,15 +351,15 @@ ridge_fit$a0[which.max(ridge_fit.scale$a0)]
 ## Centrage de Y et non de X
 ```{r}
 y.scale <- scale(ytrain, scale = TRUE , center = TRUE )
-x.scale <- as.data.frame(cbind(y.scale,x.train))
-xRidge_train.scale <- model.matrix(y.scale~., data=x.scale)
+x.scale <- as.data.frame(cbind(y.scale,x.pca))
+xRidge_train.scale <- model.matrix(y.scale~., data=x.pca)
 ridge_fit.scale <- glmnet(xRidge_train.scale, y.scale,alpha = 0, lambda=gridRidge)
 plot(ridge_fit.scale$a0,main="évolution des coefficients de l'intercept",ylab="Valeur de l'intercept",type="l")
 
 abline(v = which.max(ridge_fit.scale$a0),col="red",lty=2)
 abline(h = ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)],col="red",lty=2)
 ridge_fit.scale$a0[which.max(ridge_fit.scale$a0)]
-text(which.max(ridge_fit.scale$a0),-5,which.max(ridge_fit.scale$a0),col="red")
+text(which.max(ridge_fit.scale$a0),4,which.max(ridge_fit.scale$a0),col="red")
 ```
 
 
@@ -359,34 +396,56 @@ Le jeu de validation n'est pas équilibré non plus. Cependant, les deux jeux (a
 
 ## 2 - 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(pls)
+library(leaps)
 set.seed(1)
-cvseg <- cvsegments(nrow(x.train),k=4,type="random")
+B <- 3
+folds <- cvsegments(nrow(x.pca),B, type="random")
 ```
+Nous créons sur notre jeu de données un 3-fold pour une validation croisée et nous initialisons notre plan d'expérience.
+
+```{r}
+lmtot = lm(ytrain~., data=x.pca)
+X = as.data.frame(model.matrix(lmtot))
+
+for(b in 1:B){
+  subsetb=unlist(folds[[b]])
+  best.fit=regsubsets(ytrain~.,data=X[-subsetb,],really.big = TRUE)
+  # pour chaque taille de modèle
+  for(j in 1:10){
+    coefj=coef(best.fit,id=j)
+    pred=x[subsetb,names(coefj)]%*%coefj
+    cv.errors[b,j]=mean( (ytrain[subsetb]-pred)^2)
+    cv.bestmod[b,j]=paste(names(coef(best.fit,id=j)[-1]),collapse="+")
+  }
+}
+```
+
 
 
 
 ```{r}
 library(MASS)
-par(mfrow=c(1,2))
-plot(lm.ridge(ytrain~.,data = x.train,lambda=seq(0,1,0.01)))
-plot(lm.ridge(ytrain~.,data = x.train,lambda=seq(0,0.2,0.001)))
+
+plot(lm.ridge(ytrain~.,data = x.pca,lambda=seq(0,100,0.1)))
 ```
 
 
 ```{r}
-plot(lm.ridge(ytrain~.,data = x.train,lambda=gridRidge),xlim=c(0,20))
+gridRidge <- 10^seq(0,2,0.01)
+plot(lm.ridge(ytrain~.,data = x.pca,lambda=gridRidge),main="",xlim=c(0,20))
+abline(h=0)
 ```
 
 ```{r}
 choix.kappa <- function(kappamax,cvseg,nbe=100){
   press=rep(0,nbe)
-  for (i in 1:length(cvseg)){
-    cook.app <- cbind(ytrain,x.train)
-    valid <- cook.app[unlist(cvseg[i]),]
+  for (i in 1:length(folds)){
+    cook.app <- cbind(ytrain,x.pca)
+    valid <- cook.app[unlist(folds[i]),]
     
-    modele <- lm.ridge(ytrain~.,data=cook.app[unlist(cvseg[-i]),],lambda = seq(0,kappamax,length=nbe))
+    modele <- lm.ridge(ytrain~.,data=cook.app[unlist(folds[-i]),],lambda = seq(0,kappamax,length=nbe))
     coeff <- coef(modele)
     prediction <- matrix(coeff[,1],nrow(coeff),nrow(valid))+coeff[,-1]%*%t(data.matrix(valid[,-1]))
     press <- press+rowSums((matrix(valid[,1],nrow(coeff),nrow(valid),byrow=T)-prediction)**2)
@@ -403,7 +462,7 @@ plot(seq(0,0.5,length = 1000), res$press,main = "PRESS",xlab="nombre d'échantil
 ```
 ```{r}
 kappaet <- res$kappaet
-x.ridge <- lm.ridge(ytrain~.,data = x.train,lambda = kappaet)
+x.ridge <- lm.ridge(ytrain~.,data = x.pca,lambda = kappaet)
 coeff <- coef(x.ridge)
 ```
 
@@ -420,7 +479,7 @@ plot.res=function(x,y,titre="titre")
 Nous allons maintenant comparer les valeurs réelles de la teneur en sucre ($ytrain$) avec la prédiction que nous faisons avec notre modèle de régression Ridge.
 ```{r}
 par(mfrow=c(1,2))
-cook.app <- cbind(ytrain,x.train)
+cook.app <- cbind(ytrain,x.pca)
 fit.rid <- rep(coeff[1],nrow(cook.app))+as.vector(coeff[-1]%*%t(data.matrix(cook.app[,-1])))
 plot(fit.rid,cook.app[,1],main="Y_pred en fonction de ytrain",xlab="Valeurs prédites",ylab = "ytrain")
 abline(a = 0 , b = 1,col="red")
